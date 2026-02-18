@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+*.egg
+dist/
+build/
+venv/
+.venv/
+
+# Environment
+.env
+.env.local
+
+# Database
+data/*.db
+
+# Uploads (keep directory)
+data/uploads/*
+!data/uploads/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Claude
+.claude/
