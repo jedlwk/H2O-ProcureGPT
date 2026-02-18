@@ -14,6 +14,12 @@ fi
 echo "Installing Python dependencies..."
 pip install -q -r backend/requirements.txt
 
+# Seed demo data if DB doesn't exist
+if [ ! -f data/document_intel.db ]; then
+  echo "Seeding demo data..."
+  python seed_demo.py
+fi
+
 # Install frontend deps
 echo "Installing frontend dependencies..."
 cd frontend

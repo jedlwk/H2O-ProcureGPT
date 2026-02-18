@@ -62,7 +62,7 @@ H2OGPTE_ADDRESS=https://h2ogpte.genai.h2o.ai/
 ./start.sh
 ```
 
-This installs all dependencies and starts both servers.
+This installs all dependencies, seeds demo data (on first run), and starts both servers.
 
 ### 3. Open
 
@@ -71,12 +71,10 @@ Go to **http://localhost:3000** in your browser. Done.
 > **Manual setup:** If you prefer to run things separately, or `start.sh` doesn't work on your system:
 >
 > ```bash
-> # Terminal 1 — Backend
 > pip install -r backend/requirements.txt
-> uvicorn backend.main:app --port 8000
->
-> # Terminal 2 — Frontend
-> cd frontend && npm install && npm run dev
+> python seed_demo.py                        # first time only — creates demo data
+> uvicorn backend.main:app --port 8000       # terminal 1
+> cd frontend && npm install && npm run dev  # terminal 2
 > ```
 
 ---
