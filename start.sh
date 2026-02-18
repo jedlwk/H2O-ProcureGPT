@@ -3,38 +3,74 @@
 
 set -e
 
-# Check .env exists
+# ── Check prerequisites ──
+
 if [ ! -f .env ]; then
   echo "ERROR: .env file not found."
   echo "Run:  cp .env.example .env  and fill in your H2OGPTE credentials."
   exit 1
 fi
 
-# Install Python deps
+# Find Python
+PYTHON=""
+for cmd in python3 python; do
+  if command -v $cmd &>/dev/null; then
+    PYTHON=$cmd
+    break
+  fi
+done
+if [ -z "$PYTHON" ]; then
+  echo "ERROR: Python not found. Install Python 3.10+ from https://www.python.org/downloads/"
+  exit 1
+fi
+echo "Using $($PYTHON --version)"
+
+# Find pip
+PIP=""
+for cmd in pip3 pip "$PYTHON -m pip"; do
+  if $cmd --version &>/dev/null 2>&1; then
+    PIP=$cmd
+    break
+  fi
+done
+if [ -z "$PIP" ]; then
+  echo "pip not found. Installing pip..."
+  curl -sS https://bootstrap.pypa.io/get-pip.py | $PYTHON
+  PIP="$PYTHON -m pip"
+fi
+
+# Find Node
+if ! command -v node &>/dev/null; then
+  echo "ERROR: Node.js not found. Install Node.js 20+ from https://nodejs.org/"
+  exit 1
+fi
+echo "Using Node $(node --version)"
+
+# ── Install dependencies ──
+
 echo "Installing Python dependencies..."
-pip install -q -r backend/requirements.txt
+$PIP install -q -r backend/requirements.txt
 
 # Seed demo data if DB doesn't exist
 if [ ! -f data/document_intel.db ]; then
   echo "Seeding demo data..."
-  python seed_demo.py
+  $PYTHON seed_demo.py
 fi
 
-# Install frontend deps
 echo "Installing frontend dependencies..."
 cd frontend
 npm install --silent
 cd ..
 
-# Start backend
+# ── Start servers ──
+
+echo ""
 echo "Starting backend on http://localhost:8000..."
-uvicorn backend.main:app --port 8000 &
+$PYTHON -m uvicorn backend.main:app --port 8000 &
 BACKEND_PID=$!
 
-# Wait for backend
 sleep 3
 
-# Start frontend
 echo "Starting frontend on http://localhost:3000..."
 cd frontend
 npm run dev &
@@ -42,9 +78,11 @@ FRONTEND_PID=$!
 cd ..
 
 echo ""
-echo "ProcureGPT is running:"
+echo "============================================"
+echo "  ProcureGPT is running!"
 echo "  Frontend → http://localhost:3000"
 echo "  Backend  → http://localhost:8000"
+echo "============================================"
 echo ""
 echo "Press Ctrl+C to stop."
 

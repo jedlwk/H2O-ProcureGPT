@@ -42,8 +42,8 @@ Upload vendor quotations (PDF/Excel), extract structured line items via AI, vali
 ### 1. Clone and configure
 
 ```bash
-git clone <your-repo-url>
-cd Procurement
+git clone https://github.com/jedlwk/H2O-ProcureGPT.git
+cd H2O-ProcureGPT
 cp .env.example .env
 ```
 
@@ -68,13 +68,13 @@ This installs all dependencies, seeds demo data (on first run), and starts both 
 
 Go to **http://localhost:3000** in your browser. Done.
 
-> **Manual setup:** If you prefer to run things separately, or `start.sh` doesn't work on your system:
+> **Manual setup:** If you prefer to run things separately:
 >
 > ```bash
-> pip install -r backend/requirements.txt
-> python seed_demo.py                        # first time only — creates demo data
-> uvicorn backend.main:app --port 8000       # terminal 1
-> cd frontend && npm install && npm run dev  # terminal 2
+> pip3 install -r backend/requirements.txt
+> python3 seed_demo.py                         # first time only — creates demo data
+> python3 -m uvicorn backend.main:app --port 8000  # terminal 1
+> cd frontend && npm install && npm run dev        # terminal 2
 > ```
 
 ---
