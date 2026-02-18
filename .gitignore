@@ -9,9 +9,11 @@ build/
 venv/
 .venv/
 
-# Environment
+# Environment (keep .example files)
 .env
-.env.local
+!.env.example
+frontend/.env.local
+!frontend/.env.local.example
 
 # Database
 data/*.db
@@ -31,6 +33,7 @@ data/uploads/*
 frontend/node_modules/
 frontend/.next/
 frontend/out/
+frontend/next-env.d.ts
 
 # Claude
 .claude/
