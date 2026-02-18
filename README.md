@@ -28,7 +28,7 @@ Upload vendor quotations (PDF/Excel), extract structured line items via AI, vali
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| **Python** | 3.10+ | Tested on 3.11, 3.13 |
+| **Python** | 3.9+ | Tested on 3.9, 3.11, 3.13 |
 | **Node.js** | 20+ | Tested on 20, 24 |
 | **npm** | 10+ | Comes with Node.js |
 | **H2OGPTE** | 1.6.47+ | You need an API key and endpoint |
