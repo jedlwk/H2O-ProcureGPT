@@ -139,7 +139,7 @@ def insert_record(record: dict) -> int:
         conn.close()
 
 
-def get_record_by_id(record_id: int) -> dict | None:
+def get_record_by_id(record_id: int) -> "dict | None":
     """Retrieve a single record by ID."""
     conn = get_db_connection()
     try:
@@ -444,7 +444,7 @@ def get_distinct_distributors() -> list[str]:
         conn.close()
 
 
-def get_historical_price_summary(sku: str, eu_company: str = None) -> dict | None:
+def get_historical_price_summary(sku: str, eu_company: str = None) -> "dict | None":
     """Get price statistics for a specific SKU, optionally filtered by company."""
     conn = get_db_connection()
     try:

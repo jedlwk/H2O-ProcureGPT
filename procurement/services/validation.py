@@ -50,7 +50,7 @@ def is_empty_value(value) -> bool:
     return False
 
 
-def parse_date(date_str) -> datetime | None:
+def parse_date(date_str) -> "datetime | None":
     """Parse a date string in multiple formats. Returns None if unparseable."""
     if date_str is None or (isinstance(date_str, str) and date_str.strip() == ''):
         return None
@@ -81,7 +81,7 @@ def parse_date(date_str) -> datetime | None:
     return None
 
 
-def _to_numeric(value) -> float | None:
+def _to_numeric(value) -> "float | None":
     """Convert a value to float, returning None if not possible."""
     if value is None:
         return None
