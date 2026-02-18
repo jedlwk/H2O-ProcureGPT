@@ -146,20 +146,55 @@ def extract_document_with_llm(
 
 
 def parse_extraction_response(response_content: str) -> list[dict]:
-    """Parse LLM response into a list of record dicts."""
+    """Parse LLM response into a list of record dicts.
+
+    Handles single JSON objects, JSON arrays, and JSONL (multiple JSON
+    objects on separate lines) which some LLMs produce.
+    """
     try:
         data = json.loads(response_content)
     except json.JSONDecodeError:
-        # Try to find JSON in the response
+        # LLM may return multiple JSON objects on separate lines (JSONL).
+        # Try parsing each line individually and merge results.
+        items: list[dict] = []
+        for line in response_content.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                if isinstance(obj, dict) and 'items' in obj:
+                    items.extend(obj['items'])
+                elif isinstance(obj, dict):
+                    items.append(obj)
+                elif isinstance(obj, list):
+                    items.extend(obj)
+            except json.JSONDecodeError:
+                continue
+
+        if items:
+            return items
+
+        # Fallback: extract the first JSON array or object from the text
         match = re.search(r'\[.*\]', response_content, re.DOTALL)
         if match:
-            data = json.loads(match.group())
-        else:
-            match = re.search(r'\{.*\}', response_content, re.DOTALL)
-            if match:
+            try:
                 data = json.loads(match.group())
-            else:
-                return []
+                return data if isinstance(data, list) else [data]
+            except json.JSONDecodeError:
+                pass
+
+        match = re.search(r'\{.*?\}', response_content, re.DOTALL)
+        if match:
+            try:
+                data = json.loads(match.group())
+                if isinstance(data, dict) and 'items' in data:
+                    return data['items']
+                return [data] if isinstance(data, dict) else []
+            except json.JSONDecodeError:
+                pass
+
+        return []
 
     if isinstance(data, dict):
         if 'items' in data:

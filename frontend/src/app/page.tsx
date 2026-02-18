@@ -5,7 +5,6 @@ import { api } from '@/lib/api'
 import { MetricCard } from '@/components/dashboard/metric-card'
 import { RecentActivity } from '@/components/dashboard/recent-activity'
 import { QuickActions } from '@/components/dashboard/quick-actions'
-import { IssuesList } from '@/components/dashboard/issues-list'
 import { PageHeader } from '@/components/layout/page-header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -30,15 +29,6 @@ export default function DashboardPage() {
     queryKey: ['dashboard'],
     queryFn: () => api.dashboard.getMetrics(),
   })
-
-  const { data: records } = useQuery({
-    queryKey: ['records'],
-    queryFn: () => api.records.list(),
-  })
-
-  const issueRecords = (records ?? []).filter(
-    (r) => r.validation_status === 'error' || r.validation_status === 'warning'
-  )
 
   if (isLoading) {
     return (
@@ -95,9 +85,6 @@ export default function DashboardPage() {
           icon={Package}
         />
       </div>
-
-      {/* Issues */}
-      {issueRecords.length > 0 && <IssuesList records={issueRecords} />}
 
       {/* Activity + Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

@@ -9,6 +9,7 @@ from procurement.services.database import (
     get_distinct_eu_companies,
     get_distinct_distributors,
     get_all_skus,
+    get_historical_price_summaries_batch,
 )
 
 router = APIRouter(prefix="/api", tags=["historical"])
@@ -52,6 +53,20 @@ async def chart_data(
         records = search_historical_records(sku=sku, eu_company=eu_company, limit=1000)
         stats = get_historical_stats(sku=sku, eu_company=eu_company)
         return {"records": records, "stats": stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/historical/batch-stats")
+async def batch_stats(
+    skus: str = Query(..., description="Comma-separated list of SKUs"),
+):
+    """Get price/quantity statistics for multiple SKUs at once."""
+    try:
+        sku_list = [s.strip() for s in skus.split(',') if s.strip()]
+        if not sku_list:
+            return {}
+        return get_historical_price_summaries_batch(sku_list)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

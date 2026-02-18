@@ -2,8 +2,9 @@
 Database service for SQLite operations.
 Handles all CRUD, historical archiving, search, and dashboard metrics.
 """
+import random
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from procurement.config.settings import DATABASE_PATH
 
@@ -506,5 +507,117 @@ def get_all_skus() -> list[str]:
             "SELECT DISTINCT sku FROM historical_archive WHERE sku IS NOT NULL AND sku != '' ORDER BY sku"
         )
         return [row['sku'] for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def generate_historical_for_skus(records: list[dict]):
+    """Generate synthetic historical pricing data for extracted SKUs.
+
+    For each unique SKU in the records, checks if sufficient historical data
+    exists. If fewer than 5 records, generates 12 months of synthetic entries
+    with slight price/quantity variance around the extracted values.
+    """
+    # Group records by SKU, keeping first occurrence for reference data
+    sku_map: dict[str, dict] = {}
+    for rec in records:
+        sku = rec.get('sku')
+        if sku and sku not in sku_map:
+            sku_map[sku] = rec
+
+    if not sku_map:
+        return
+
+    conn = get_db_connection()
+    try:
+        now = datetime.now()
+        for sku, ref in sku_map.items():
+            # Check existing count
+            cursor = conn.execute(
+                "SELECT COUNT(*) as cnt FROM historical_archive WHERE sku = ?",
+                (sku,),
+            )
+            count = cursor.fetchone()['cnt']
+            if count >= 5:
+                continue
+
+            base_price = ref.get('unit_price') or 0
+            base_qty = ref.get('quantity') or 1
+            distributor = ref.get('distributor', '')
+            eu_company = ref.get('eu_company', '')
+            description = ref.get('item_description', '')
+            brand = ref.get('brand', '')
+            currency = ref.get('quote_currency', 'USD')
+
+            if base_price <= 0:
+                continue
+
+            # Generate 12 monthly entries going back from current month
+            for month_offset in range(1, 13):
+                entry_date = now - timedelta(days=30 * month_offset)
+                date_str = entry_date.strftime('%Y-%m-%d')
+
+                # Price: base ± 10% with slight upward drift for older entries
+                drift = 1.0 - (month_offset * 0.005)  # older prices slightly lower
+                variance = random.uniform(-0.10, 0.10)
+                price = round(base_price * drift * (1 + variance), 2)
+
+                # Quantity: base ± 30% variance
+                qty_variance = random.uniform(-0.30, 0.30)
+                qty = max(1, round(base_qty * (1 + qty_variance)))
+
+                total = round(price * qty, 2)
+
+                conn.execute(
+                    """INSERT INTO historical_archive
+                       (sku, distributor, item_description, brand, quote_currency,
+                        quantity, unit_price, total_price, eu_company,
+                        archived_at, archive_reason, start_date)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (sku, distributor, description, brand, currency,
+                     qty, price, total, eu_company,
+                     date_str, 'synthetic_historical', date_str),
+                )
+
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_historical_price_summaries_batch(skus: list[str]) -> dict[str, dict]:
+    """Get price and quantity statistics for multiple SKUs in one query.
+
+    Returns a dict keyed by SKU with avg_price, min_price, max_price,
+    avg_quantity, and record_count for each.
+    """
+    if not skus:
+        return {}
+
+    conn = get_db_connection()
+    try:
+        placeholders = ', '.join(['?'] * len(skus))
+        cursor = conn.execute(
+            f"""SELECT
+                    sku,
+                    AVG(unit_price) as avg_price,
+                    MIN(unit_price) as min_price,
+                    MAX(unit_price) as max_price,
+                    AVG(quantity) as avg_quantity,
+                    COUNT(*) as record_count
+                FROM historical_archive
+                WHERE sku IN ({placeholders}) AND unit_price IS NOT NULL
+                GROUP BY sku""",
+            skus,
+        )
+        result = {}
+        for row in cursor.fetchall():
+            result[row['sku']] = {
+                'avg_price': round(row['avg_price'], 2) if row['avg_price'] else 0,
+                'min_price': round(row['min_price'], 2) if row['min_price'] else 0,
+                'max_price': round(row['max_price'], 2) if row['max_price'] else 0,
+                'avg_quantity': round(row['avg_quantity'], 1) if row['avg_quantity'] else 0,
+                'record_count': row['record_count'],
+            }
+        return result
     finally:
         conn.close()

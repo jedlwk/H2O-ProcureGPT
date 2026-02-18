@@ -8,14 +8,16 @@ import { PageHeader } from '@/components/layout/page-header'
 import { FilterBar } from '@/components/records/filter-bar'
 import { DataTable } from '@/components/records/data-table'
 import { ValidationBadge } from '@/components/records/validation-badge'
+import { IssuesList } from '@/components/dashboard/issues-list'
 import { PriceVarianceChart } from '@/components/charts/price-variance-chart'
 import { QuantityTrendsChart } from '@/components/charts/quantity-trends-chart'
 import { SpendImpactGauge } from '@/components/charts/spend-impact-gauge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { api } from '@/lib/api'
 import { useApproveBatch } from '@/lib/hooks/use-records'
 import { useCompanies, useDistributors } from '@/lib/hooks/use-historical'
-import type { ProcurementRecord } from '@/lib/types'
+import type { ProcurementRecord, BatchStatsResult } from '@/lib/types'
 import { Download, CheckCircle, AlertTriangle } from 'lucide-react'
 
 export default function ValidatePage() {
@@ -25,6 +27,8 @@ export default function ValidatePage() {
   const [filters, setFilters] = useState({
     sku: '', distributor: '', eu_company: '', status: 'all', date_from: '', date_to: '',
   })
+
+  const [historicalStats, setHistoricalStats] = useState<BatchStatsResult>({})
 
   const approveMutation = useApproveBatch()
   const { data: companies } = useCompanies()
@@ -40,6 +44,18 @@ export default function ValidatePage() {
     }
     if (storedFile) setSourceFile(storedFile)
   }, [])
+
+  // Fetch real historical stats for extracted SKUs
+  useEffect(() => {
+    const skus = [...new Set(records.map((r) => r.sku).filter(Boolean))] as string[]
+    if (skus.length === 0) return
+    api.historical.batchStats(skus).then(setHistoricalStats).catch(() => {})
+  }, [records])
+
+  const issueRecords = useMemo(
+    () => records.filter((r) => r.validation_status === 'error' || r.validation_status === 'warning'),
+    [records],
+  )
 
   const filteredRecords = useMemo(() => {
     return records.filter((r) => {
@@ -62,30 +78,41 @@ export default function ValidatePage() {
     return { total, items, aboveAvg, errors }
   }, [filteredRecords])
 
-  // Chart data (mock historical comparison - in production would come from API)
+  // Chart data — uses real historical stats when available
   const priceVarianceData = useMemo(() =>
     filteredRecords
       .filter((r) => r.sku && r.unit_price)
       .slice(0, 15)
-      .map((r) => ({
-        sku: r.sku || '',
-        current_price: r.unit_price || 0,
-        historical_avg: (r.unit_price || 0) * (0.8 + Math.random() * 0.4), // Simulated
-        variance_pct: Math.random() * 60 - 30,
-      })),
-    [filteredRecords]
+      .map((r) => {
+        const stats = historicalStats[r.sku || '']
+        const currentPrice = r.unit_price || 0
+        const avgPrice = stats?.avg_price || currentPrice
+        const variance = avgPrice > 0
+          ? ((currentPrice - avgPrice) / avgPrice) * 100
+          : 0
+        return {
+          sku: r.sku || '',
+          current_price: currentPrice,
+          historical_avg: avgPrice,
+          variance_pct: Math.round(variance * 10) / 10,
+        }
+      }),
+    [filteredRecords, historicalStats]
   )
 
   const quantityData = useMemo(() =>
     filteredRecords
       .filter((r) => r.sku && r.quantity)
       .slice(0, 15)
-      .map((r) => ({
-        sku: r.sku || '',
-        current_qty: r.quantity || 0,
-        historical_avg_qty: Math.round((r.quantity || 0) * (0.7 + Math.random() * 0.6)),
-      })),
-    [filteredRecords]
+      .map((r) => {
+        const stats = historicalStats[r.sku || '']
+        return {
+          sku: r.sku || '',
+          current_qty: r.quantity || 0,
+          historical_avg_qty: Math.round(stats?.avg_quantity || r.quantity || 0),
+        }
+      }),
+    [filteredRecords, historicalStats]
   )
 
   const handleApprove = async () => {
@@ -194,6 +221,9 @@ export default function ValidatePage() {
         companies={companies}
         distributors={distributors}
       />
+
+      {/* Issues to Resolve */}
+      {issueRecords.length > 0 && <IssuesList records={issueRecords} />}
 
       {/* Summary + Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">

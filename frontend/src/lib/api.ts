@@ -7,6 +7,7 @@ import type {
   AnalystResponse,
   HealthStatus,
   BatchApproveResponse,
+  BatchStatsResult,
 } from './types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -111,6 +112,10 @@ export const api = {
       )
     },
     allSkus: () => fetchAPI<string[]>('/api/historical/all-skus'),
+    batchStats: (skus: string[]) =>
+      fetchAPI<BatchStatsResult>(
+        `/api/historical/batch-stats?skus=${skus.map(encodeURIComponent).join(',')}`
+      ),
   },
 
   companies: {

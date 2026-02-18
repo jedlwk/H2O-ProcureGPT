@@ -110,3 +110,13 @@ export interface BatchApproveResponse {
   approved_count: number
   record_ids: number[]
 }
+
+export interface SkuPriceSummary {
+  avg_price: number
+  min_price: number
+  max_price: number
+  avg_quantity: number
+  record_count: number
+}
+
+export type BatchStatsResult = Record<string, SkuPriceSummary>

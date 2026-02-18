@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from backend.models import UploadResponse
 from procurement.config.settings import UPLOAD_DIR, ALLOWED_EXTENSIONS
-from procurement.services.database import insert_uploaded_file, update_uploaded_file
+from procurement.services.database import insert_uploaded_file, update_uploaded_file, generate_historical_for_skus
 from procurement.services.extraction import extract_document_with_llm
 from procurement.services.llm_service import verify_procurement_document
 
@@ -82,6 +82,13 @@ async def extract_records(
                     rec['eu_company'] = eu_company
 
         update_uploaded_file(file_id, 'completed', len(records))
+
+        # Auto-generate historical data for extracted SKUs so benchmarking works immediately
+        try:
+            generate_historical_for_skus(records)
+        except Exception:
+            pass  # Non-critical — don't fail extraction if historical generation has issues
+
         return UploadResponse(
             file_id=file_id,
             filename=file.filename,
