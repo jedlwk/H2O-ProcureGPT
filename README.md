@@ -1,6 +1,6 @@
 # ProcureGPT
 
-AI-powered procurement document processing system built with **Next.js**, **FastAPI**, and **H2OGPTE**.
+H2OGPTe-powered procurement document processing system built with **Next.js**, **FastAPI**, and **H2OGPTE**.
 
 Upload vendor quotations (PDF/Excel), extract structured line items via AI, validate against business rules, benchmark pricing against historical data, and get conversational insights from an AI analyst.
 
@@ -54,8 +54,8 @@ H2OGPTE_API_KEY=sk-your-api-key-here
 H2OGPTE_ADDRESS=https://h2ogpte.genai.h2o.ai/
 ```
 
-> **Where to get these:** Log in to your H2OGPTE instance → Settings → API Keys.
-
+> **Where to get these:** Refer to the [Step-by-Step Guide (PDF)](./HOW_TO_GET_H2OGPTE_API.pdf)
+> 
 ### 2. Run
 
 ```bash
