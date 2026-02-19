@@ -85,6 +85,8 @@ This single command:
 
 Go to **http://localhost:3000** in your browser. Done.
 
+> **Sample quotes:** Three demo quotation files are provided in the `sample_quotes/` folder. Upload any of them to see AI extraction, validation, and historical price benchmarking in action — the seed data includes 18 months of pricing history for all SKUs in these files.
+
 ---
 
 <details>
@@ -213,7 +215,7 @@ Procurement/
 │   ├── test_database.py      # 9 tests — CRUD, search, metrics
 │   └── test_validation.py    # 28 tests — all validation rules
 │
-├── samples/                  # Demo quotation files for testing
+├── sample_quotes/             # Sample quotation files for testing
 │   ├── Sample_Quote.xlsx
 │   ├── Sample_Quote_1.pdf
 │   └── Sample_Quote_2.pdf

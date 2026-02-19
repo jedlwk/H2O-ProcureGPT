@@ -1,8 +1,8 @@
 """
 Seed the database with demo data.
 Run once after cloning: python seed_demo.py
-Creates 5 companies, 48 active records, 688 historical records,
-including historical pricing for Sample_Quote_Given.xlsx SKUs.
+Creates 5 companies with active records and 18 months of historical records,
+including historical pricing for all 3 sample quote files (sample_quotes/).
 """
 import sqlite3
 import random
@@ -43,7 +43,23 @@ SAMPLE_QUOTE_PRODUCTS = [
     {'sku': 'SID700-6-60-36-100', 'desc': 'RSA SecurID Authenticator SID700 (36 months) 100 Pack', 'brand': 'RSA', 'base_price': 5746.35, 'ccy': 'USD', 'typical_qty': [1, 2, 3]},
 ]
 
-ALL_PRODUCTS = GENERAL_PRODUCTS + SAMPLE_QUOTE_PRODUCTS
+# SKUs from the 3 sample quote files (sample_quotes/ folder)
+SAMPLE_QUOTE_FILE_PRODUCTS = [
+    # Sample_Quote.xlsx & Sample_Quote_1.pdf (CyberArk Vault products)
+    {'sku': 'VSM-MDC-SM-PREM', 'desc': 'Vault Self Managed Platform Multi DC Cluster - Small - Premium', 'brand': 'CyberArk', 'base_price': 70183.71, 'ccy': 'USD', 'typical_qty': [2, 3, 4]},
+    {'sku': 'VSM-MDC-CLT-200', 'desc': 'Vault Self Managed Multi Data Center Client 200', 'brand': 'CyberArk', 'base_price': 2526.61, 'ccy': 'USD', 'typical_qty': [100, 150, 200, 250]},
+    {'sku': 'VGS-SUP-0041', 'desc': 'Vault Gold Support', 'brand': 'CyberArk', 'base_price': 129138.01, 'ccy': 'USD', 'typical_qty': [1, 2]},
+    {'sku': 'VSM-NP-CLT-001', 'desc': 'Vault Self Managed Platform Cluster Non Production', 'brand': 'CyberArk', 'base_price': 13475.27, 'ccy': 'USD', 'typical_qty': [1, 2, 3]},
+    {'sku': 'VGS-SUP-0017', 'desc': 'Vault Gold Support', 'brand': 'CyberArk', 'base_price': 2695.05, 'ccy': 'USD', 'typical_qty': [1, 2, 3]},
+    {'sku': 'VADP-KM-SM-050', 'desc': 'Vault ADP KM - Small', 'brand': 'CyberArk', 'base_price': 1216.52, 'ccy': 'USD', 'typical_qty': [25, 50, 75]},
+    {'sku': 'VGS-SUP-0032', 'desc': 'Vault Gold Support', 'brand': 'CyberArk', 'base_price': 12165.20, 'ccy': 'USD', 'typical_qty': [1, 2]},
+    {'sku': 'VADP-TRF-050', 'desc': 'Vault ADP Transform', 'brand': 'CyberArk', 'base_price': 4491.76, 'ccy': 'USD', 'typical_qty': [25, 50, 75]},
+    {'sku': 'VGS-SUP-0089', 'desc': 'Vault Gold Support', 'brand': 'CyberArk', 'base_price': 44917.57, 'ccy': 'USD', 'typical_qty': [1, 2]},
+    # Sample_Quote_2.pdf (Cisco transceiver)
+    {'sku': 'QSFP-110G-SR4-S', 'desc': '110GBASE SR4 QSFP Transceiver, MPO, 110M', 'brand': 'Cisco', 'base_price': 375.00, 'ccy': 'USD', 'typical_qty': [20, 40, 60, 80]},
+]
+
+ALL_PRODUCTS = GENERAL_PRODUCTS + SAMPLE_QUOTE_PRODUCTS + SAMPLE_QUOTE_FILE_PRODUCTS
 
 SOURCE_FILES = [
     'Cisco_Q1_2026_Quote.pdf', 'RSA_Renewal_Quote.pdf', 'Fortinet_Bundle.pdf',
@@ -54,7 +70,7 @@ random.seed(42)
 
 
 def gen_serial():
-    return f"{random.choice(['FCW','JAD','FTX','RSA','SID'])}{random.randint(10000000,99999999)}"
+    return f"{random.choice(['FCW','JAD','FTX','RSA','SID','CYA'])}{random.randint(10000000,99999999)}"
 
 
 def rand_date(start_year, end_year):
