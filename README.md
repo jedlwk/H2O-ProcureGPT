@@ -1,6 +1,6 @@
 # ProcureGPT
 
-H2OGPTe-powered procurement document processing system built with **Next.js**, **FastAPI**, and **H2OGPTE**.
+H2OGPTe-powered procurement document processing system built with **Next.js**, **FastAPI**, and **H2OGPTe**.
 
 Upload vendor quotations (PDF/Excel), extract structured line items via AI, validate against business rules, benchmark pricing against historical data, and get conversational insights from an AI analyst.
 
@@ -16,7 +16,7 @@ Upload vendor quotations (PDF/Excel), extract structured line items via AI, vali
 
 | Feature | Description |
 |---------|-------------|
-| **AI Extraction** | Upload PDF/Excel quotations → H2OGPTE extracts structured line items |
+| **AI Extraction** | Upload PDF/Excel quotations → H2OGPTe extracts structured line items |
 | **Validation Engine** | 3-tier validation (error/warning/valid) with 15+ business rules |
 | **Price Benchmarking** | Compare current prices against historical averages with charts |
 | **Historical Browser** | Search 18 months of pricing data with trend visualization |
@@ -34,7 +34,7 @@ Upload vendor quotations (PDF/Excel), extract structured line items via AI, vali
 | **Python** | 3.10+ | Tested on 3.10, 3.11, 3.13 |
 | **Node.js** | 20+ | Tested on 20, 24 |
 | **npm** | 10+ | Comes with Node.js |
-| **H2OGPTE** | 1.6.47+ | You need an API key and endpoint |
+| **H2OGPTe** | 1.6.47+ | You need an API key and endpoint |
 
 > **Why Python 3.10 specifically?** Key packages (pandas, numpy, uvicorn) don't ship pre-built Windows wheels for 3.9. On 3.10+, everything installs cleanly on both macOS and Windows — no C compiler needed.
 
@@ -57,7 +57,7 @@ cd H2O-ProcureGPT
 |---------------|---------|
 | `cp .env.example .env` | `copy .env.example .env` |
 
-Then open `.env` and add your H2OGPTE credentials:
+Then open `.env` and add your H2OGPTe credentials:
 
 ```
 H2OGPTE_API_KEY=sk-your-api-key-here
