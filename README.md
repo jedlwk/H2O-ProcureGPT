@@ -213,13 +213,16 @@ Procurement/
 │   ├── test_database.py      # 9 tests — CRUD, search, metrics
 │   └── test_validation.py    # 28 tests — all validation rules
 │
+├── samples/                  # Demo quotation files for testing
+│   ├── Sample_Quote.xlsx
+│   ├── Sample_Quote_1.pdf
+│   └── Sample_Quote_2.pdf
+│
 ├── extraction_prompt.txt     # AI extraction prompt (17-field schema)
-├── Sample_Quote_Given.xlsx   # Demo quotation file for testing
 ├── docker-compose.yml        # Docker setup (backend + frontend)
 ├── start.sh                  # One-command start (macOS / Linux)
 ├── start.bat                 # One-command start (Windows)
-├── .env.example              # Template for backend env vars
-└── PRD.md                    # Product requirements document
+└── .env.example              # Template for backend env vars
 ```
 
 ---
