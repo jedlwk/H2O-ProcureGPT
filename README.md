@@ -73,9 +73,13 @@ H2OGPTE_ADDRESS=https://h2ogpte.genai.h2o.ai/
 | `./start.sh` | `start.bat` |
 
 This single command:
+- **Finds Python 3.10+** automatically (even if your default `python3` is older)
+- **Creates a `.venv`** virtual environment (or recreates it if the existing one uses an old Python)
 - Installs all Python and Node dependencies
 - Seeds demo data on first run
 - Starts the backend (port 8000) and frontend (port 3000)
+
+> **Note:** You need Python 3.10+ **installed** somewhere on your system, but it doesn't have to be your default. The script searches for `python3.13`, `python3.12`, `python3.11`, `python3.10` automatically. On Windows, it also checks the `py` launcher (`py -3.13`, etc.).
 
 ### 4. Open
 
