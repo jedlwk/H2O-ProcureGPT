@@ -31,10 +31,12 @@ Upload vendor quotations (PDF/Excel), extract structured line items via AI, vali
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| **Python** | 3.10+ | Tested on 3.10, 3.11, 3.13. (**3.9 is not supported** — missing Windows wheels for C-extension packages.) |
+| **Python** | 3.10+ | Tested on 3.10, 3.11, 3.13. |
 | **Node.js** | 20+ | Tested on 20, 24 |
 | **npm** | 10+ | Comes with Node.js |
 | **H2OGPTE** | 1.6.47+ | You need an API key and endpoint |
+
+> **Why Python 3.10 specifically?** Key packages (pandas, numpy, uvicorn) don't ship pre-built Windows wheels for 3.9. On 3.10+, everything installs cleanly on both macOS and Windows — no C compiler needed.
 
 ---
 
