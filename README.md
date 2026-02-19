@@ -8,6 +8,7 @@ Upload vendor quotations (PDF/Excel), extract structured line items via AI, vali
 ![API](https://img.shields.io/badge/Backend-FastAPI-009688?style=flat-square&logo=fastapi)
 ![AI](https://img.shields.io/badge/AI-H2OGPTE-FEC925?style=flat-square)
 ![DB](https://img.shields.io/badge/Database-SQLite-003B57?style=flat-square&logo=sqlite)
+![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-blue?style=flat-square)
 
 ---
 
@@ -26,28 +27,35 @@ Upload vendor quotations (PDF/Excel), extract structured line items via AI, vali
 
 ## Prerequisites
 
+> **Using Docker?** Skip straight to [Docker Setup](#docker-setup) — no Python or Node.js needed.
+
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| **Python** | 3.9+ | Tested on 3.9, 3.11, 3.13 |
+| **Python** | 3.10+ | Tested on 3.10, 3.11, 3.13. (**3.9 is not supported** — missing Windows wheels for C-extension packages.) |
 | **Node.js** | 20+ | Tested on 20, 24 |
 | **npm** | 10+ | Comes with Node.js |
 | **H2OGPTE** | 1.6.47+ | You need an API key and endpoint |
-
-> **Docker alternative:** If you have Docker installed, skip to [Docker Setup](#docker-setup).
 
 ---
 
 ## Quick Start (Local)
 
-### 1. Clone and configure
+These steps are the same on **macOS**, **Windows**, and **Linux**. Where a command differs, both versions are shown.
+
+### 1. Clone the repo
 
 ```bash
 git clone https://github.com/jedlwk/H2O-ProcureGPT.git
 cd H2O-ProcureGPT
-cp .env.example .env
 ```
 
-Edit `.env` — add your H2OGPTE credentials:
+### 2. Create your `.env` file
+
+| macOS / Linux | Windows |
+|---------------|---------|
+| `cp .env.example .env` | `copy .env.example .env` |
+
+Then open `.env` and add your H2OGPTE credentials:
 
 ```
 H2OGPTE_API_KEY=sk-your-api-key-here
@@ -55,41 +63,68 @@ H2OGPTE_ADDRESS=https://h2ogpte.genai.h2o.ai/
 ```
 
 > **Where to get these:** Refer to the [Step-by-Step Guide (PDF)](./HOW_TO_GET_H2OGPTE_API.pdf)
-> 
-### 2. Run
 
-```bash
-./start.sh
-```
+### 3. Start the app
 
-This installs all dependencies, seeds demo data (on first run), and starts both servers.
+| macOS / Linux | Windows |
+|---------------|---------|
+| `./start.sh` | `start.bat` |
 
-### 3. Open
+This single command:
+- Installs all Python and Node dependencies
+- Seeds demo data on first run
+- Starts the backend (port 8000) and frontend (port 3000)
+
+### 4. Open
 
 Go to **http://localhost:3000** in your browser. Done.
 
-> **Manual setup:** If you prefer to run things separately:
->
-> ```bash
-> pip3 install -r backend/requirements.txt
-> python3 seed_demo.py                         # first time only — creates demo data
-> python3 -m uvicorn backend.main:app --port 8000  # terminal 1
-> cd frontend && npm install && npm run dev        # terminal 2
-> ```
+---
+
+<details>
+<summary><strong>Manual setup</strong> (if you prefer to run backend and frontend separately)</summary>
+
+**Install dependencies:**
+
+| macOS / Linux | Windows |
+|---------------|---------|
+| `pip3 install -r backend/requirements.txt` | `pip install -r backend\requirements.txt` |
+
+**Seed demo data (first time only):**
+
+| macOS / Linux | Windows |
+|---------------|---------|
+| `python3 seed_demo.py` | `python seed_demo.py` |
+
+**Start backend (terminal 1):**
+
+| macOS / Linux | Windows |
+|---------------|---------|
+| `python3 -m uvicorn backend.main:app --port 8000` | `python -m uvicorn backend.main:app --port 8000` |
+
+**Start frontend (terminal 2):**
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+</details>
 
 ---
 
 ## Docker Setup
 
-Works on **macOS**, **Windows**, and **Linux** — anywhere Docker runs.
+Works on **macOS**, **Windows**, and **Linux** — anywhere Docker runs. No Python or Node.js installation required.
 
-### 1. Set up environment variables
+### 1. Create your `.env` file
 
-```bash
-cp .env.example .env
-```
+| macOS / Linux | Windows |
+|---------------|---------|
+| `cp .env.example .env` | `copy .env.example .env` |
 
-Edit `.env` with your H2OGPTE credentials (see step 2 above).
+Edit `.env` with your H2OGPTE credentials (same as step 2 above).
 
 ### 2. Build and run
 
@@ -97,7 +132,9 @@ Edit `.env` with your H2OGPTE credentials (see step 2 above).
 docker compose up --build
 ```
 
-This starts both the backend (port 8000) and frontend (port 3000).
+This builds and starts both containers:
+- **Backend** — Python 3.10, FastAPI on port 8000
+- **Frontend** — Node 20, Next.js on port 3000
 
 ### 3. Open the app
 
@@ -173,6 +210,8 @@ Procurement/
 ├── extraction_prompt.txt     # AI extraction prompt (17-field schema)
 ├── Sample_Quote_Given.xlsx   # Demo quotation file for testing
 ├── docker-compose.yml        # Docker setup (backend + frontend)
+├── start.sh                  # One-command start (macOS / Linux)
+├── start.bat                 # One-command start (Windows)
 ├── .env.example              # Template for backend env vars
 └── PRD.md                    # Product requirements document
 ```
@@ -237,4 +276,4 @@ All 37 tests should pass:
 
 ## License
 
-Proprietary — H2O.ai. Internal use only. Not for redistribution. 
+Proprietary — H2O.ai. Internal use only. Not for redistribution.
