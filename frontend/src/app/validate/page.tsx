@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { type ColumnDef } from '@tanstack/react-table'
 import { PageHeader } from '@/components/layout/page-header'
 import { FilterBar } from '@/components/records/filter-bar'
 import { DataTable } from '@/components/records/data-table'
+import { EditableCell } from '@/components/records/editable-cell'
 import { ValidationBadge } from '@/components/records/validation-badge'
 import { IssuesList } from '@/components/dashboard/issues-list'
 import { PriceVarianceChart } from '@/components/charts/price-variance-chart'
@@ -14,11 +15,18 @@ import { QuantityTrendsChart } from '@/components/charts/quantity-trends-chart'
 import { SpendImpactGauge } from '@/components/charts/spend-impact-gauge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { api } from '@/lib/api'
-import { useApproveBatch } from '@/lib/hooks/use-records'
+import { useApproveBatch, useValidateRecords } from '@/lib/hooks/use-records'
 import { useCompanies, useDistributors } from '@/lib/hooks/use-historical'
 import type { ProcurementRecord, BatchStatsResult } from '@/lib/types'
-import { Download, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Download, CheckCircle, AlertTriangle, Trash2, RotateCcw } from 'lucide-react'
 
 export default function ValidatePage() {
   const router = useRouter()
@@ -27,10 +35,12 @@ export default function ValidatePage() {
   const [filters, setFilters] = useState({
     sku: '', distributor: '', eu_company: '', status: 'all', date_from: '', date_to: '',
   })
+  const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
 
   const [historicalStats, setHistoricalStats] = useState<BatchStatsResult>({})
 
   const approveMutation = useApproveBatch()
+  const validateMutation = useValidateRecords()
   const { data: companies } = useCompanies()
   const { data: distributors } = useDistributors()
 
@@ -51,6 +61,46 @@ export default function ValidatePage() {
     if (skus.length === 0) return
     api.historical.batchStats(skus).then(setHistoricalStats).catch(() => {})
   }, [records])
+
+  // Persist records to sessionStorage on change
+  const updateRecords = useCallback((updated: ProcurementRecord[]) => {
+    setRecords(updated)
+    sessionStorage.setItem('pendingRecords', JSON.stringify(updated))
+  }, [])
+
+  const handleCellSave = useCallback((rowIndex: number, fieldKey: string, value: string | number | null) => {
+    const updated = [...records]
+    const numericFields = ['quantity', 'unit_price', 'total_price']
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rec = updated[rowIndex] as any
+    if (numericFields.includes(fieldKey) && value !== null) {
+      const num = parseFloat(String(value))
+      rec[fieldKey] = isNaN(num) ? value : num
+    } else {
+      rec[fieldKey] = value
+    }
+    updated[rowIndex] = { ...rec, user_modified: true }
+    updateRecords(updated)
+  }, [records, updateRecords])
+
+  const handleDelete = () => {
+    if (deleteIndex !== null) {
+      const updated = records.filter((_, i) => i !== deleteIndex)
+      updateRecords(updated)
+      setDeleteIndex(null)
+      toast.success('Record removed')
+    }
+  }
+
+  const handleRevalidate = async () => {
+    try {
+      const validated = await validateMutation.mutateAsync(records)
+      updateRecords(validated)
+      toast.success('Re-validation complete')
+    } catch {
+      toast.error('Re-validation failed')
+    }
+  }
 
   const issueRecords = useMemo(
     () => records.filter((r) => r.validation_status === 'error' || r.validation_status === 'warning'),
@@ -154,28 +204,106 @@ export default function ValidatePage() {
       cell: ({ row }) => <ValidationBadge status={(row.original.validation_status as 'valid' | 'warning' | 'error' | 'pending') || 'pending'} />,
       size: 100,
     },
-    { accessorKey: 'sku', header: 'SKU', cell: ({ getValue }) => <span className="font-mono text-xs">{getValue() as string}</span> },
-    { accessorKey: 'item_description', header: 'Description', cell: ({ getValue }) => <span className="max-w-48 truncate block">{getValue() as string}</span> },
-    { accessorKey: 'quantity', header: 'Qty', cell: ({ getValue }) => (getValue() as number)?.toLocaleString() },
+    {
+      accessorKey: 'sku',
+      header: 'SKU',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.sku}
+          fieldKey="sku"
+          fieldValidation={row.original.field_validation?.sku}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'item_description',
+      header: 'Description',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.item_description}
+          fieldKey="item_description"
+          fieldValidation={row.original.field_validation?.item_description}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'quantity',
+      header: 'Qty',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.quantity}
+          fieldKey="quantity"
+          fieldValidation={row.original.field_validation?.quantity}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+        />
+      ),
+    },
     {
       accessorKey: 'unit_price',
       header: 'Unit Price',
-      cell: ({ getValue }) => {
-        const v = getValue() as number
-        return v != null ? `$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '-'
-      },
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.unit_price}
+          fieldKey="unit_price"
+          fieldValidation={row.original.field_validation?.unit_price}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+        />
+      ),
     },
     {
       accessorKey: 'total_price',
       header: 'Total',
-      cell: ({ getValue }) => {
-        const v = getValue() as number
-        return v != null ? `$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '-'
-      },
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.total_price}
+          fieldKey="total_price"
+          fieldValidation={row.original.field_validation?.total_price}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+        />
+      ),
     },
-    { accessorKey: 'distributor', header: 'Distributor' },
-    { accessorKey: 'eu_company', header: 'Company' },
-  ], [])
+    {
+      accessorKey: 'distributor',
+      header: 'Distributor',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.distributor}
+          fieldKey="distributor"
+          fieldValidation={row.original.field_validation?.distributor}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'eu_company',
+      header: 'Company',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.eu_company}
+          fieldKey="eu_company"
+          fieldValidation={row.original.field_validation?.eu_company}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+        />
+      ),
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-muted-foreground hover:text-red-400"
+          onClick={(e) => { e.stopPropagation(); setDeleteIndex(row.index) }}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      ),
+      size: 40,
+    },
+  ], [handleCellSave])
 
   if (!records.length) {
     return (
@@ -199,6 +327,15 @@ export default function ValidatePage() {
         description={`${records.length} records from ${sourceFile || 'upload'}`}
         actions={
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRevalidate}
+              disabled={validateMutation.isPending}
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              {validateMutation.isPending ? 'Validating...' : 'Re-validate'}
+            </Button>
             <Button variant="outline" size="sm" onClick={exportCsv}>
               <Download className="h-4 w-4 mr-2" />
               Export CSV
@@ -265,6 +402,22 @@ export default function ValidatePage() {
 
       {/* Records Table */}
       <DataTable data={filteredRecords} columns={columns} />
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteIndex !== null} onOpenChange={() => setDeleteIndex(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Record</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to remove this record? This action cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleteIndex(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import type { ProcurementRecord } from '@/lib/types'
 import { DataTable } from '@/components/records/data-table'
+import { EditableCell } from '@/components/records/editable-cell'
 import { ValidationBadge } from '@/components/records/validation-badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -15,74 +15,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Trash2, Edit2, Check, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Trash2 } from 'lucide-react'
 
 interface VerificationWorkspaceProps {
   records: ProcurementRecord[]
   onRecordsChange: (records: ProcurementRecord[]) => void
   onRevalidate: () => void
   isValidating?: boolean
-}
-
-function EditableCell({
-  value,
-  fieldKey,
-  record,
-  fieldValidation,
-  onSave,
-}: {
-  value: string | number | null
-  fieldKey: string
-  record: ProcurementRecord
-  fieldValidation?: { status: string; message: string }
-  onSave: (key: string, value: string | number | null) => void
-}) {
-  const [editing, setEditing] = useState(false)
-  const [editValue, setEditValue] = useState(String(value ?? ''))
-
-  const status = fieldValidation?.status || 'valid'
-  const borderColor = status === 'error' ? 'border-red-500/50' : status === 'warning' ? 'border-amber-500/50' : ''
-
-  if (editing) {
-    return (
-      <div className="flex items-center gap-1">
-        <Input
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          className="h-7 text-xs w-24"
-          autoFocus
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              onSave(fieldKey, editValue || null)
-              setEditing(false)
-            }
-            if (e.key === 'Escape') setEditing(false)
-          }}
-        />
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { onSave(fieldKey, editValue || null); setEditing(false) }}>
-          <Check className="h-3 w-3" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditing(false)}>
-          <X className="h-3 w-3" />
-        </Button>
-      </div>
-    )
-  }
-
-  return (
-    <div
-      className={cn(
-        'cursor-pointer rounded px-1.5 py-0.5 text-xs hover:bg-muted/50 group flex items-center gap-1 border border-transparent',
-        borderColor
-      )}
-      onClick={() => setEditing(true)}
-      title={fieldValidation?.message}
-    >
-      <span className="truncate max-w-32">{value ?? '-'}</span>
-      <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-50 shrink-0" />
-    </div>
-  )
 }
 
 export function VerificationWorkspace({
@@ -93,7 +32,7 @@ export function VerificationWorkspace({
 }: VerificationWorkspaceProps) {
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
 
-  const handleCellSave = (rowIndex: number, fieldKey: string, value: string | number | null) => {
+  const handleCellSave = useCallback((rowIndex: number, fieldKey: string, value: string | number | null) => {
     const updated = [...records]
     const numericFields = ['quantity', 'unit_price', 'total_price']
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -106,7 +45,7 @@ export function VerificationWorkspace({
     }
     updated[rowIndex] = { ...rec, user_modified: true }
     onRecordsChange(updated)
-  }
+  }, [records, onRecordsChange])
 
   const handleDelete = () => {
     if (deleteIndex !== null) {
@@ -132,7 +71,6 @@ export function VerificationWorkspace({
         <EditableCell
           value={row.original.sku}
           fieldKey="sku"
-          record={row.original}
           fieldValidation={row.original.field_validation?.sku}
           onSave={(k, v) => handleCellSave(row.index, k, v)}
         />
@@ -145,7 +83,6 @@ export function VerificationWorkspace({
         <EditableCell
           value={row.original.item_description}
           fieldKey="item_description"
-          record={row.original}
           fieldValidation={row.original.field_validation?.item_description}
           onSave={(k, v) => handleCellSave(row.index, k, v)}
         />
@@ -158,7 +95,6 @@ export function VerificationWorkspace({
         <EditableCell
           value={row.original.quantity}
           fieldKey="quantity"
-          record={row.original}
           fieldValidation={row.original.field_validation?.quantity}
           onSave={(k, v) => handleCellSave(row.index, k, v)}
         />
@@ -171,7 +107,6 @@ export function VerificationWorkspace({
         <EditableCell
           value={row.original.unit_price}
           fieldKey="unit_price"
-          record={row.original}
           fieldValidation={row.original.field_validation?.unit_price}
           onSave={(k, v) => handleCellSave(row.index, k, v)}
         />
@@ -184,7 +119,6 @@ export function VerificationWorkspace({
         <EditableCell
           value={row.original.total_price}
           fieldKey="total_price"
-          record={row.original}
           fieldValidation={row.original.field_validation?.total_price}
           onSave={(k, v) => handleCellSave(row.index, k, v)}
         />
@@ -197,7 +131,6 @@ export function VerificationWorkspace({
         <EditableCell
           value={row.original.distributor}
           fieldKey="distributor"
-          record={row.original}
           fieldValidation={row.original.field_validation?.distributor}
           onSave={(k, v) => handleCellSave(row.index, k, v)}
         />
@@ -218,7 +151,7 @@ export function VerificationWorkspace({
       ),
       size: 40,
     },
-  ], [records])
+  ], [handleCellSave])
 
   const summary = useMemo(() => {
     const s = { valid: 0, warning: 0, error: 0 }
