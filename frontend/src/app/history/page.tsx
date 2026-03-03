@@ -85,8 +85,9 @@ export default function HistoryPage() {
   const columns: ColumnDef<ProcurementRecord, unknown>[] = useMemo(() => [
     { accessorKey: 'sku', header: 'SKU', cell: (info) => <span className="font-mono text-xs">{info.getValue() as string}</span> },
     { accessorKey: 'item_description', header: 'Description', cell: (info) => <span className="max-w-48 truncate block">{info.getValue() as string}</span> },
-    { accessorKey: 'distributor', header: 'Distributor' },
     { accessorKey: 'brand', header: 'Brand' },
+    { accessorKey: 'distributor', header: 'Distributor' },
+    { accessorKey: 'eu_company', header: 'Company' },
     { accessorKey: 'quantity', header: 'Qty', cell: (info) => (info.getValue() as number)?.toLocaleString() },
     { accessorKey: 'unit_price', header: 'Unit Price', cell: (info) => {
       const v = info.getValue() as number
@@ -96,6 +97,13 @@ export default function HistoryPage() {
       const v = info.getValue() as number
       return v != null ? `$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '-'
     }},
+    { accessorKey: 'quote_currency', header: 'Ccy' },
+    { accessorKey: 'serial_no', header: 'Serial No', cell: (info) => <span className="font-mono text-xs">{(info.getValue() as string) || '-'}</span> },
+    { accessorKey: 'start_date', header: 'Start Date', cell: (info) => <span className="text-xs">{(info.getValue() as string) || '-'}</span> },
+    { accessorKey: 'end_date', header: 'End Date', cell: (info) => <span className="text-xs">{(info.getValue() as string) || '-'}</span> },
+    { accessorKey: 'quotation_ref_no', header: 'Quote Ref', cell: (info) => <span className="text-xs">{(info.getValue() as string) || '-'}</span> },
+    { accessorKey: 'quotation_date', header: 'Quote Date', cell: (info) => <span className="text-xs">{(info.getValue() as string) || '-'}</span> },
+    { accessorKey: 'quotation_validity', header: 'Validity', cell: (info) => <span className="text-xs">{(info.getValue() as string) || '-'}</span> },
     {
       id: 'trend',
       header: 'Trend',
@@ -109,16 +117,15 @@ export default function HistoryPage() {
       },
       size: 150,
     },
-    { accessorKey: 'eu_company', header: 'Company' },
-    { accessorKey: 'quote_currency', header: 'Ccy' },
-    { accessorKey: 'source_file', header: 'Source', cell: (info) => <span className="max-w-32 truncate block text-xs text-muted-foreground">{info.getValue() as string}</span> },
+    { accessorKey: 'source_file', header: 'Source', cell: (info) => <span className="max-w-32 truncate block text-xs text-muted-foreground">{(info.getValue() as string) || '-'}</span> },
   ], [historicalStats])
 
   const exportCsv = () => {
     if (!records.length) return
-    const headers = ['SKU', 'Description', 'Distributor', 'Brand', 'Qty', 'Unit Price', 'Total', 'Company', 'Currency']
+    const headers = ['SKU', 'Description', 'Brand', 'Distributor', 'Company', 'Qty', 'Unit Price', 'Total', 'Currency', 'Serial No', 'Start Date', 'End Date', 'Quote Ref', 'Quote Date', 'Validity', 'Source']
     const rows = records.map((r) => [
-      r.sku, r.item_description, r.distributor, r.brand, r.quantity, r.unit_price, r.total_price, r.eu_company, r.quote_currency,
+      r.sku, r.item_description, r.brand, r.distributor, r.eu_company, r.quantity, r.unit_price, r.total_price,
+      r.quote_currency, r.serial_no, r.start_date, r.end_date, r.quotation_ref_no, r.quotation_date, r.quotation_validity, r.source_file,
     ])
     const csv = [headers.join(','), ...rows.map((r) => r.map((v) => `"${v ?? ''}"`).join(','))].join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })

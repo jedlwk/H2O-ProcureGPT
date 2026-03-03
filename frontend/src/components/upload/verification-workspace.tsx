@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Trash2 } from 'lucide-react'
+import { Trash2, CheckCheck } from 'lucide-react'
 
 interface VerificationWorkspaceProps {
   records: ProcurementRecord[]
@@ -93,6 +93,32 @@ export function VerificationWorkspace({
     rec.validation_status = worst
 
     updated[rowIndex] = rec
+    onChangeRef.current(updated)
+  }, [])
+
+  const handleAcknowledgeAllWarnings = useCallback(() => {
+    const current = recordsRef.current
+    const updated = current.map((rec) => {
+      const fv = rec.field_validation
+      if (!fv) return rec
+      let changed = false
+      const newFv = { ...fv }
+      for (const [key, field] of Object.entries(newFv)) {
+        if (field.status === 'warning' && !field.acknowledged) {
+          newFv[key] = { ...field, acknowledged: true }
+          changed = true
+        }
+      }
+      if (!changed) return rec
+      // Recalculate overall status ignoring acknowledged fields
+      let worst: 'valid' | 'warning' | 'error' = 'valid'
+      for (const fd of Object.values(newFv) as { status: string; acknowledged?: boolean }[]) {
+        if (fd.acknowledged) continue
+        if (fd.status === 'error') { worst = 'error'; break }
+        if (fd.status === 'warning') worst = 'warning'
+      }
+      return { ...rec, field_validation: newFv, validation_status: worst }
+    })
     onChangeRef.current(updated)
   }, [])
 
@@ -405,6 +431,16 @@ export function VerificationWorkspace({
               <span className="text-emerald-400">{summary.valid} valid</span>
               <span className="text-amber-400">{summary.warning} warnings</span>
               <span className="text-red-400">{summary.error} errors</span>
+              {summary.warning > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAcknowledgeAllWarnings}
+                >
+                  <CheckCheck className="h-3.5 w-3.5 mr-1.5" />
+                  Acknowledge Warnings
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
