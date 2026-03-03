@@ -340,29 +340,51 @@ export function RecordCard({
                   Loading historical data...
                 </div>
               ) : historyData && historyData.length > 0 ? (
-                <div className="rounded-md border border-border overflow-hidden">
-                  <table className="w-full text-sm">
+                <div className="rounded-md border border-border overflow-x-auto">
+                  <table className="text-sm whitespace-nowrap">
                     <thead>
                       <tr className="border-b border-border bg-muted/30">
-                        <th className="text-left px-4 py-2 font-medium text-muted-foreground text-xs">Date</th>
-                        <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Price</th>
-                        <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Qty</th>
-                        <th className="text-left px-4 py-2 font-medium text-muted-foreground text-xs">Distributor</th>
-                        <th className="text-left px-4 py-2 font-medium text-muted-foreground text-xs">Company</th>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs">SKU</th>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs">Description</th>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs">Brand</th>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs">Distributor</th>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs">Company</th>
+                        <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs">Qty</th>
+                        <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs">Unit Price</th>
+                        <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs">Total</th>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs">Ccy</th>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs">Serial No</th>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs">Start Date</th>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs">End Date</th>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs">Quote Ref</th>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs">Quote Date</th>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs">Validity</th>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs">Source</th>
                       </tr>
                     </thead>
                     <tbody>
                       {historyData.slice(0, 12).map((h, i) => (
                         <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/20">
-                          <td className="px-4 py-2 text-muted-foreground">
-                            {h.quotation_date || h.created_at?.slice(0, 10) || '—'}
-                          </td>
-                          <td className="px-4 py-2 text-right tabular-nums">
+                          <td className="px-3 py-2 font-mono text-xs">{h.sku || '—'}</td>
+                          <td className="px-3 py-2 max-w-48 truncate">{h.item_description || '—'}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{h.brand || '—'}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{h.distributor || '—'}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{h.eu_company || '—'}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{h.quantity ?? '—'}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">
                             {h.unit_price != null ? `$${h.unit_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
                           </td>
-                          <td className="px-4 py-2 text-right tabular-nums">{h.quantity ?? '—'}</td>
-                          <td className="px-4 py-2 text-muted-foreground">{h.distributor || '—'}</td>
-                          <td className="px-4 py-2 text-muted-foreground">{h.eu_company || '—'}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">
+                            {h.total_price != null ? `$${h.total_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-muted-foreground">{h.quote_currency || '—'}</td>
+                          <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{h.serial_no || '—'}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{h.start_date || '—'}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{h.end_date || '—'}</td>
+                          <td className="px-3 py-2 text-muted-foreground text-xs">{h.quotation_ref_no || '—'}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{h.quotation_date || h.created_at?.slice(0, 10) || '—'}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{h.quotation_validity || '—'}</td>
+                          <td className="px-3 py-2 text-muted-foreground text-xs">{h.source_file || '—'}</td>
                         </tr>
                       ))}
                     </tbody>
