@@ -54,7 +54,7 @@ export function RecentActivity({ uploads }: RecentActivityProps) {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-base">Recent Uploads</CardTitle>
-        <Link href="/uploads" className="text-xs text-primary hover:underline">
+        <Link href="/upload" className="text-xs text-primary hover:underline">
           View All
         </Link>
       </CardHeader>

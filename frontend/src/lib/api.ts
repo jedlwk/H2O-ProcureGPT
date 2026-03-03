@@ -17,7 +17,7 @@ import type {
   ReferenceDocument,
 } from './types'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 class APIError extends Error {
   constructor(public status: number, message: string) {
