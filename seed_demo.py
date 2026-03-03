@@ -3,8 +3,11 @@ Seed the database with demo data.
 Run once after cloning: python seed_demo.py
 Creates 5 companies with active records and 18 months of historical records,
 including historical pricing for all 3 sample quote files (sample_quotes/).
+Pre-parses the 3 sample quotes as draft records so they appear as "Newly Uploaded"
+on the Upload page.
 """
 import sqlite3
+import shutil
 import random
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -105,7 +108,8 @@ def seed_active_records(conn):
                 vs, vm = 'warning', 'Unit price deviates from historical average'
             else:
                 vs, vm = 'error', 'Missing compulsory field: serial_no'
-            created = (now - timedelta(days=random.randint(0, 55))).isoformat()
+            # Bias toward recent dates so dashboard "This Month" is populated
+            created = (now - timedelta(days=random.randint(0, 30))).isoformat()
             conn.execute("""
                 INSERT INTO records (
                     sku, distributor, item_description, brand, quote_currency,
@@ -173,12 +177,96 @@ def seed_historical(conn):
     return count
 
 
+# Pre-parsed records from the 3 sample quote files (hardcoded to avoid LLM dependency at seed time)
+SAMPLE_QUOTE_XLSX_RECORDS = [
+    {'sku': 'SID-A330-A', 'item_description': 'RSA SecurID A330 Appliance', 'brand': 'RSA', 'distributor': 'ZZZ Security Pte Ltd', 'quote_currency': 'USD', 'quantity': 12, 'serial_no': 'NEW', 'unit_price': 27875.00, 'total_price': 334500.00, 'start_date': 'TBA', 'end_date': 'TBA', 'quotation_ref_no': 'MTSG-QT20231017 Rev 3', 'quotation_date': '2026-01-09', 'quotation_end_date': '2026-08-19', 'quotation_validity': '30 days', 'eu_company': 'YYY', 'comments_notes': 'Tech refresh of 12 Current Appliance. Year 1-3 Appliance Maintenance'},
+    {'sku': 'MT-HWM-2474-RSA', 'item_description': 'MTSG, Advance Hardware Replacement 24x7x4, Appliance 330, 1Yr', 'brand': 'RSA', 'distributor': 'ZZZ Security Pte Ltd', 'quote_currency': 'USD', 'quantity': 36, 'serial_no': 'NEW', 'unit_price': 390.00, 'total_price': 14040.00, 'start_date': 'TBA', 'end_date': 'TBA', 'quotation_ref_no': 'MTSG-QT20231017 Rev 3', 'quotation_date': '2026-01-09', 'quotation_end_date': '2026-08-19', 'quotation_validity': '30 days', 'eu_company': 'YYY', 'comments_notes': 'Year 1-3 Hardware Loaner'},
+    {'sku': 'AUT0000250EE1-8', 'item_description': 'SID Access Ent EnhMnt 1Mo', 'brand': 'RSA', 'distributor': 'ZZZ Security Pte Ltd', 'quote_currency': 'USD', 'quantity': 200, 'serial_no': '81371374', 'unit_price': 110.00, 'total_price': 22000.00, 'start_date': '2026-05-01', 'end_date': '2028-04-30', 'quotation_ref_no': 'MTSG-QT20231017 Rev 3', 'quotation_date': '2026-01-09', 'quotation_end_date': '2026-08-19', 'quotation_validity': '30 days', 'eu_company': 'YYY', 'comments_notes': '36 Months Maintenance Renewal for 200 User License'},
+    {'sku': 'SID700-6-60-36-100', 'item_description': 'RSA SecurID Authenticator SID700 (36 months) 100 Pack', 'brand': 'RSA', 'distributor': 'ZZZ Security Pte Ltd', 'quote_currency': 'USD', 'quantity': 1, 'serial_no': '81371374', 'unit_price': 5746.35, 'total_price': 5746.35, 'start_date': 'TBA', 'end_date': 'TBA', 'quotation_ref_no': 'MTSG-QT20231017 Rev 3', 'quotation_date': '2026-01-09', 'quotation_end_date': '2026-08-19', 'quotation_validity': '30 days', 'eu_company': 'YYY', 'comments_notes': 'Replace 100 Hard tokens expiring April 2028'},
+    {'sku': 'SID700-6-60-36-100', 'item_description': 'RSA SecurID Authenticator SID700 (36 months) 100 Pack', 'brand': 'RSA', 'distributor': 'ZZZ Security Pte Ltd', 'quote_currency': 'USD', 'quantity': 1, 'serial_no': '81371374', 'unit_price': 5746.35, 'total_price': 5746.35, 'start_date': 'TBA', 'end_date': 'TBA', 'quotation_ref_no': 'MTSG-QT20231017 Rev 3', 'quotation_date': '2026-01-09', 'quotation_end_date': '2026-08-19', 'quotation_validity': '30 days', 'eu_company': 'YYY', 'comments_notes': 'Replace 100 Hard tokens expiring April 2028'},
+]
+
+SAMPLE_QUOTE_1_PDF_RECORDS = [
+    {'sku': 'VSM-MDC-SM-PREM', 'item_description': 'Vault Self Managed Platform Multi DC Cluster - Small - Premium', 'brand': 'CyberArk', 'distributor': 'TechVault Solutions', 'quote_currency': 'USD', 'quantity': 3, 'serial_no': '', 'unit_price': 70183.71, 'total_price': 210551.14, 'start_date': '2024-03-01', 'end_date': '2025-02-28', 'quotation_ref_no': 'TV-QT-2024-0892', 'quotation_date': '2024-01-15', 'quotation_end_date': '2024-02-14', 'quotation_validity': '30 days', 'eu_company': 'Meridian Financial Services', 'comments_notes': ''},
+    {'sku': 'VSM-MDC-CLT-200', 'item_description': 'Vault Self Managed Multi Data Center Client 200', 'brand': 'CyberArk', 'distributor': 'TechVault Solutions', 'quote_currency': 'USD', 'quantity': 200, 'serial_no': '', 'unit_price': 2526.61, 'total_price': 505321.00, 'start_date': '2024-03-01', 'end_date': '2025-02-28', 'quotation_ref_no': 'TV-QT-2024-0892', 'quotation_date': '2024-01-15', 'quotation_end_date': '2024-02-14', 'quotation_validity': '30 days', 'eu_company': 'Meridian Financial Services', 'comments_notes': ''},
+    {'sku': 'VGS-SUP-0041', 'item_description': 'Vault Gold Support', 'brand': 'CyberArk', 'distributor': 'TechVault Solutions', 'quote_currency': 'USD', 'quantity': 1, 'serial_no': '', 'unit_price': 129138.01, 'total_price': 129138.01, 'start_date': '2024-03-01', 'end_date': '2025-02-28', 'quotation_ref_no': 'TV-QT-2024-0892', 'quotation_date': '2024-01-15', 'quotation_end_date': '2024-02-14', 'quotation_validity': '30 days', 'eu_company': 'Meridian Financial Services', 'comments_notes': 'Gold Support for VSM-MDC-SM-PREM'},
+    {'sku': 'VSM-NP-CLT-001', 'item_description': 'Vault Self Managed Platform Cluster Non Production', 'brand': 'CyberArk', 'distributor': 'TechVault Solutions', 'quote_currency': 'USD', 'quantity': 2, 'serial_no': '', 'unit_price': 13475.27, 'total_price': 26950.54, 'start_date': '2024-03-01', 'end_date': '2025-02-28', 'quotation_ref_no': 'TV-QT-2024-0892', 'quotation_date': '2024-01-15', 'quotation_end_date': '2024-02-14', 'quotation_validity': '30 days', 'eu_company': 'Meridian Financial Services', 'comments_notes': 'Non-production environment'},
+    {'sku': 'VGS-SUP-0017', 'item_description': 'Vault Gold Support', 'brand': 'CyberArk', 'distributor': 'TechVault Solutions', 'quote_currency': 'USD', 'quantity': 2, 'serial_no': '', 'unit_price': 2695.05, 'total_price': 5390.11, 'start_date': '2024-03-01', 'end_date': '2025-02-28', 'quotation_ref_no': 'TV-QT-2024-0892', 'quotation_date': '2024-01-15', 'quotation_end_date': '2024-02-14', 'quotation_validity': '30 days', 'eu_company': 'Meridian Financial Services', 'comments_notes': 'Gold Support for VSM-NP-CLT-001'},
+    {'sku': 'VADP-KM-SM-050', 'item_description': 'Vault ADP KM - Small', 'brand': 'CyberArk', 'distributor': 'TechVault Solutions', 'quote_currency': 'USD', 'quantity': 50, 'serial_no': '', 'unit_price': 1216.52, 'total_price': 60826.00, 'start_date': '2024-03-01', 'end_date': '2025-02-28', 'quotation_ref_no': 'TV-QT-2024-0892', 'quotation_date': '2024-01-15', 'quotation_end_date': '2024-02-14', 'quotation_validity': '30 days', 'eu_company': 'Meridian Financial Services', 'comments_notes': ''},
+    {'sku': 'VGS-SUP-0032', 'item_description': 'Vault Gold Support', 'brand': 'CyberArk', 'distributor': 'TechVault Solutions', 'quote_currency': 'USD', 'quantity': 1, 'serial_no': '', 'unit_price': 12165.20, 'total_price': 12165.20, 'start_date': '2024-03-01', 'end_date': '2025-02-28', 'quotation_ref_no': 'TV-QT-2024-0892', 'quotation_date': '2024-01-15', 'quotation_end_date': '2024-02-14', 'quotation_validity': '30 days', 'eu_company': 'Meridian Financial Services', 'comments_notes': 'Gold Support for VADP-KM-SM-050'},
+    {'sku': 'VADP-TRF-050', 'item_description': 'Vault ADP Transform', 'brand': 'CyberArk', 'distributor': 'TechVault Solutions', 'quote_currency': 'USD', 'quantity': 50, 'serial_no': '', 'unit_price': 4491.76, 'total_price': 224587.78, 'start_date': '2024-03-01', 'end_date': '2025-02-28', 'quotation_ref_no': 'TV-QT-2024-0892', 'quotation_date': '2024-01-15', 'quotation_end_date': '2024-02-14', 'quotation_validity': '30 days', 'eu_company': 'Meridian Financial Services', 'comments_notes': ''},
+    {'sku': 'VGS-SUP-0089', 'item_description': 'Vault Gold Support', 'brand': 'CyberArk', 'distributor': 'TechVault Solutions', 'quote_currency': 'USD', 'quantity': 1, 'serial_no': '', 'unit_price': 44917.57, 'total_price': 44917.57, 'start_date': '2024-03-01', 'end_date': '2025-02-28', 'quotation_ref_no': 'TV-QT-2024-0892', 'quotation_date': '2024-01-15', 'quotation_end_date': '2024-02-14', 'quotation_validity': '30 days', 'eu_company': 'Meridian Financial Services', 'comments_notes': 'Gold Support for VADP-TRF-050'},
+]
+
+SAMPLE_QUOTE_2_PDF_RECORDS = [
+    {'sku': 'QSFP-110G-SR4-S', 'item_description': '110GBASE SR4 QSFP Transceiver, MPO, 110M', 'brand': 'Cisco', 'distributor': 'Kyphosis Solutions', 'quote_currency': 'USD', 'quantity': 80, 'serial_no': '', 'unit_price': 375.00, 'total_price': 30000.00, 'start_date': '2024-03-01', 'end_date': '2025-02-28', 'quotation_ref_no': 'KS-QT-2024-3847', 'quotation_date': '2024-02-10', 'quotation_end_date': '2024-03-11', 'quotation_validity': '30 days', 'eu_company': 'Pacific Rim Data Centers', 'comments_notes': 'Bulk order for DC expansion'},
+]
+
+SAMPLE_QUOTE_FILES = [
+    ('Sample_Quote.xlsx', 'xlsx', 59492, SAMPLE_QUOTE_XLSX_RECORDS),
+    ('Sample_Quote_1.pdf', 'pdf', 9724, SAMPLE_QUOTE_1_PDF_RECORDS),
+    ('Sample_Quote_2.pdf', 'pdf', 114969, SAMPLE_QUOTE_2_PDF_RECORDS),
+]
+
+
+def seed_sample_quote_drafts(conn):
+    """Pre-seed the 3 sample quotes as 'uploaded' with draft records, and copy files to data/uploads/."""
+    now = datetime.now()
+    upload_dir = Path(__file__).parent / 'data' / 'uploads'
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    sample_dir = Path(__file__).parent / 'sample_quotes'
+
+    total_drafts = 0
+    for filename, ftype, fsize, records in SAMPLE_QUOTE_FILES:
+        # Copy file to data/uploads/ so preview works
+        src = sample_dir / filename
+        dst = upload_dir / filename
+        if src.exists() and not dst.exists():
+            shutil.copy2(src, dst)
+
+        # Insert uploaded_files entry with 'uploaded' status
+        ts = (now - timedelta(hours=random.randint(1, 12))).strftime('%Y-%m-%d %H:%M:%S')
+        conn.execute("""
+            INSERT INTO uploaded_files
+            (filename, original_name, file_type, file_size, upload_status, records_extracted, uploaded_at, processed_at)
+            VALUES (?, ?, ?, ?, 'uploaded', ?, ?, ?)
+        """, (filename, filename, ftype, fsize, len(records), ts, ts))
+
+        # Insert draft records (is_current=0) for this file
+        created = now.isoformat()
+        for rec in records:
+            conn.execute("""
+                INSERT INTO records (
+                    sku, distributor, item_description, brand, quote_currency,
+                    quantity, serial_no, start_date, end_date,
+                    unit_price, total_price, eu_company,
+                    quotation_ref_no, quotation_date, quotation_end_date, quotation_validity,
+                    comments_notes, source_file,
+                    validation_status, validation_message,
+                    is_current, user_modified, created_at, updated_at
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,?,?)
+            """, (
+                rec['sku'], rec.get('distributor', ''), rec['item_description'],
+                rec.get('brand', ''), rec.get('quote_currency', 'USD'),
+                rec['quantity'], rec.get('serial_no', ''),
+                rec.get('start_date', ''), rec.get('end_date', ''),
+                rec['unit_price'], rec['total_price'], rec.get('eu_company', ''),
+                rec.get('quotation_ref_no', ''), rec.get('quotation_date', ''),
+                rec.get('quotation_end_date', ''), rec.get('quotation_validity', ''),
+                rec.get('comments_notes', ''), filename,
+                'pending', '', created, created,
+            ))
+            total_drafts += 1
+
+    conn.commit()
+    return total_drafts
+
+
 def seed_uploaded_files(conn):
     now = datetime.now()
     files = [
         ('Cisco_Q1_2026_Quote.pdf', 'pdf', 245000, 8),
         ('RSA_Renewal_Quote.pdf', 'pdf', 182000, 5),
-        ('Sample_Quote.xlsx', 'xlsx', 59492, 5),
         ('Network_Quote.pdf', 'pdf', 310000, 12),
         ('HPE_Server_Proposal.xlsx', 'xlsx', 128000, 6),
     ]
@@ -210,6 +298,7 @@ def main():
         n_rec = seed_active_records(conn)
         n_hist = seed_historical(conn)
         seed_uploaded_files(conn)
+        n_drafts = seed_sample_quote_drafts(conn)
 
         cur = conn.execute("SELECT COUNT(*) FROM records WHERE is_current = 1")
         total_rec = cur.fetchone()[0]
@@ -217,6 +306,7 @@ def main():
         total_hist = cur.fetchone()[0]
 
         print(f"Seeded {total_rec} active records + {total_hist} historical records across {len(COMPANIES)} companies.")
+        print(f"Seeded {n_drafts} draft records from 3 sample quotes (appear as 'Newly Uploaded').")
     finally:
         conn.close()
 

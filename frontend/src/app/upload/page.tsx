@@ -167,12 +167,20 @@ export default function UploadPage() {
       const drafts = await api.uploads.getDrafts(originalName)
       if (drafts.length === 0) {
         toast.error('No draft records found. Records may have already been approved.')
+        // Sync the stale count to 0
+        await api.uploads.updateStatus(upload.id, undefined, 0).catch(() => {})
+        setUploads((prev) => prev.map((u) => u.id === upload.id ? { ...u, records_extracted: 0 } : u))
         return
       }
       let validated = drafts
       try {
         validated = await api.records.validate(drafts)
       } catch { /* fall back to unvalidated */ }
+      // Sync record count if it drifted (e.g. some were approved separately)
+      if (upload.records_extracted !== drafts.length) {
+        await api.uploads.updateStatus(upload.id, undefined, drafts.length).catch(() => {})
+        setUploads((prev) => prev.map((u) => u.id === upload.id ? { ...u, records_extracted: drafts.length } : u))
+      }
       if (upload.upload_status !== 'validating') {
         await api.uploads.updateStatus(upload.id, 'validating').catch(() => {})
         setUploads((prev) => prev.map((u) => u.id === upload.id ? { ...u, upload_status: 'validating' } : u))
@@ -208,14 +216,27 @@ export default function UploadPage() {
 
   const fileName = file?.name || sourceFileName || 'Document'
 
-  // Filter processed uploads by search query
+  // Filter uploads by search query, then split into needs-review vs processed
   const filteredUploads = useMemo(() => {
-    if (!searchQuery.trim()) return uploads
-    const q = searchQuery.toLowerCase()
-    return uploads.filter((u) =>
-      (u.original_name || u.filename).toLowerCase().includes(q)
-    )
+    let list = uploads
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      list = list.filter((u) =>
+        (u.original_name || u.filename).toLowerCase().includes(q)
+      )
+    }
+    return list
   }, [uploads, searchQuery])
+
+  const needsReview = useMemo(() =>
+    filteredUploads.filter((u) => ['uploaded', 'validating', 'completed'].includes(u.upload_status)),
+    [filteredUploads]
+  )
+
+  const processed = useMemo(() =>
+    filteredUploads.filter((u) => !['uploaded', 'validating', 'completed'].includes(u.upload_status)),
+    [filteredUploads]
+  )
 
   const statusLabel = (status: string) => {
     switch (status) {
@@ -384,67 +405,125 @@ export default function UploadPage() {
             <Card>
               <CardContent className="flex h-32 items-center justify-center">
                 <p className="text-sm text-muted-foreground">
-                  {searchQuery ? 'No uploads match your search' : 'No processed documents yet'}
+                  {searchQuery ? 'No uploads match your search' : 'No documents yet'}
                 </p>
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-2">
-              {filteredUploads.map((upload) => (
-                <Card key={upload.id} className="hover:bg-muted/30 transition-colors">
-                  <CardContent className="flex items-center justify-between py-4 px-5">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                        <FileText className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{upload.original_name || upload.filename}</p>
-                        <div className="flex items-center gap-3 mt-0.5">
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(upload.uploaded_at).toLocaleString()}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {upload.file_type?.toUpperCase()}
-                          </span>
-                          {upload.file_size > 0 && (
-                            <span className="text-xs text-muted-foreground">
-                              {(upload.file_size / 1024).toFixed(0)} KB
-                            </span>
-                          )}
+            <div className="space-y-6">
+              {/* Needs Review section */}
+              {needsReview.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-amber-500">Needs Review ({needsReview.length})</h3>
+                  {needsReview.map((upload) => (
+                    <Card key={upload.id} className="border-amber-500/20 hover:bg-muted/30 transition-colors">
+                      <CardContent className="flex items-center justify-between py-4 px-5">
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">
+                            <FileText className="h-5 w-5 text-amber-500" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{upload.original_name || upload.filename}</p>
+                            <div className="flex items-center gap-3 mt-0.5">
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(upload.uploaded_at).toLocaleString()}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {upload.file_type?.toUpperCase()}
+                              </span>
+                              {upload.file_size > 0 && (
+                                <span className="text-xs text-muted-foreground">
+                                  {(upload.file_size / 1024).toFixed(0)} KB
+                                </span>
+                              )}
+                              {upload.records_extracted > 0 && (
+                                <span className="text-xs text-muted-foreground">
+                                  {upload.records_extracted} records
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant="outline" className={statusColor(upload.upload_status)}>
-                        {statusLabel(upload.upload_status)}
-                      </Badge>
-                      {upload.records_extracted > 0 && (
-                        <span className="text-xs text-muted-foreground">
-                          {upload.records_extracted} records
-                        </span>
-                      )}
-                      {['uploaded', 'validating', 'completed'].includes(upload.upload_status) && upload.records_extracted > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleResume(upload)}
-                        >
-                          {upload.upload_status === 'validating' ? 'Continue Review' : 'Review'}
-                          <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-red-400"
-                        onClick={() => handleDeleteUpload(upload)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                        <div className="flex items-center gap-3">
+                          <Badge variant="outline" className={statusColor(upload.upload_status)}>
+                            {statusLabel(upload.upload_status)}
+                          </Badge>
+                          {upload.records_extracted > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleResume(upload)}
+                            >
+                              {upload.upload_status === 'validating' ? 'Continue Review' : 'Review'}
+                              <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-red-400"
+                            onClick={() => handleDeleteUpload(upload)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {/* Processed section */}
+              {processed.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">Processed ({processed.length})</h3>
+                  {processed.map((upload) => (
+                    <Card key={upload.id} className="hover:bg-muted/30 transition-colors">
+                      <CardContent className="flex items-center justify-between py-4 px-5">
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                            <FileText className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{upload.original_name || upload.filename}</p>
+                            <div className="flex items-center gap-3 mt-0.5">
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(upload.uploaded_at).toLocaleString()}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {upload.file_type?.toUpperCase()}
+                              </span>
+                              {upload.file_size > 0 && (
+                                <span className="text-xs text-muted-foreground">
+                                  {(upload.file_size / 1024).toFixed(0)} KB
+                                </span>
+                              )}
+                              {upload.records_extracted > 0 && (
+                                <span className="text-xs text-muted-foreground">
+                                  {upload.records_extracted} records
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge variant="outline" className={statusColor(upload.upload_status)}>
+                            {statusLabel(upload.upload_status)}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-red-400"
+                            onClick={() => handleDeleteUpload(upload)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
