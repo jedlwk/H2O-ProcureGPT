@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
 import { ChatInterface } from '@/components/analyst/chat-interface'
+import { ContextPanel } from '@/components/analyst/context-panel'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { api } from '@/lib/api'
@@ -102,13 +103,20 @@ export default function AnalystPage() {
         }
       />
 
-      <ChatInterface
-        messages={messages}
-        suggestions={suggestions}
-        isLoading={analystMutation.isPending}
-        onSend={handleSend}
-        onClear={handleClear}
-      />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <ChatInterface
+            messages={messages}
+            suggestions={suggestions}
+            isLoading={analystMutation.isPending}
+            onSend={handleSend}
+            onClear={handleClear}
+          />
+        </div>
+        <div>
+          <ContextPanel onQuerySelect={handleSend} />
+        </div>
+      </div>
     </div>
   )
 }

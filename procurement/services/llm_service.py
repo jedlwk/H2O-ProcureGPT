@@ -78,6 +78,63 @@ def get_best_llm(client) -> str:
     return 'auto'
 
 
+_CATALOG_PDF_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "found": {"type": "boolean"},
+        "base_price": {"type": ["number", "null"]},
+        "item_description": {"type": "string"},
+        "brand": {"type": "string"},
+    },
+    "required": ["found"],
+}
+
+
+def query_catalog_pdf(collection_id: str, sku: str, description: str = None) -> "dict | None":
+    """Query a PDF catalog collection for product details and pricing for a given SKU.
+
+    Returns a dict with {found, base_price, item_description, brand} or None on failure.
+    """
+    import json
+
+    client = get_h2ogpte_client()
+    best_model = get_best_llm(client)
+
+    desc_hint = f" (description: '{description}')" if description else ""
+    prompt = (
+        f"Find product details and pricing for SKU '{sku}'{desc_hint}. "
+        "If you find the product, return JSON with: "
+        '{"found": true, "base_price": <number or null>, "item_description": "<text>", "brand": "<text>"}. '
+        "If the product is not found in the document, return: "
+        '{"found": false, "base_price": null, "item_description": "", "brand": ""}.'
+    )
+
+    try:
+        chat_session_id = client.create_chat_session(collection_id)
+        with client.connect(chat_session_id) as session:
+            reply = session.query(
+                prompt,
+                llm=best_model,
+                llm_args={
+                    'response_format': 'json_object',
+                    'guided_json': _CATALOG_PDF_JSON_SCHEMA,
+                    'temperature': 0.0,
+                },
+                timeout=60,
+            )
+
+        data = json.loads(reply.content)
+        return {
+            'found': bool(data.get('found', False)),
+            'base_price': data.get('base_price'),
+            'item_description': data.get('item_description', ''),
+            'brand': data.get('brand', ''),
+            'raw_response': reply.content,
+        }
+    except Exception:
+        return None
+
+
 def verify_procurement_document(file_path: str, filename: str) -> bool:
     """Quick pre-check whether a file is a procurement document."""
     client = get_h2ogpte_client()

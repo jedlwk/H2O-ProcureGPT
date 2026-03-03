@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { useHistoricalSearch, usePriceTrend, useCompanies, useDistributors } from '@/lib/hooks/use-historical'
 import { PageHeader } from '@/components/layout/page-header'
@@ -20,32 +20,36 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
-import type { ProcurementRecord } from '@/lib/types'
+import { api } from '@/lib/api'
+import type { ProcurementRecord, BatchStatsResult } from '@/lib/types'
 
-const columns: ColumnDef<ProcurementRecord, unknown>[] = [
-  { accessorKey: 'sku', header: 'SKU', cell: (info) => <span className="font-mono text-xs">{info.getValue() as string}</span> },
-  { accessorKey: 'item_description', header: 'Description', cell: (info) => <span className="max-w-48 truncate block">{info.getValue() as string}</span> },
-  { accessorKey: 'distributor', header: 'Distributor' },
-  { accessorKey: 'brand', header: 'Brand' },
-  { accessorKey: 'quantity', header: 'Qty', cell: (info) => (info.getValue() as number)?.toLocaleString() },
-  { accessorKey: 'unit_price', header: 'Unit Price', cell: (info) => {
-    const v = info.getValue() as number
-    return v != null ? `$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '-'
-  }},
-  { accessorKey: 'total_price', header: 'Total', cell: (info) => {
-    const v = info.getValue() as number
-    return v != null ? `$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '-'
-  }},
-  { accessorKey: 'eu_company', header: 'Company' },
-  { accessorKey: 'quote_currency', header: 'Ccy' },
-  { accessorKey: 'source_file', header: 'Source', cell: (info) => <span className="max-w-32 truncate block text-xs text-muted-foreground">{info.getValue() as string}</span> },
-]
+const PriceSparkline = ({ minPrice, avgPrice, maxPrice }: { minPrice: number; avgPrice: number; maxPrice: number }) => {
+  if (!minPrice || !avgPrice || !maxPrice || minPrice > maxPrice) {
+    return <span className="text-muted-foreground text-xs">—</span>
+  }
+
+  const range = maxPrice - minPrice
+  const avgPercent = range > 0 ? ((avgPrice - minPrice) / range) * 100 : 50
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="relative w-16 h-5 bg-muted rounded overflow-hidden">
+        {/* Track showing range */}
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-blue-600/20" />
+        {/* Avg price dot */}
+        <div className="absolute top-1/2 w-1.5 h-1.5 bg-blue-500 rounded-full -translate-y-1/2" style={{ left: `${avgPercent}%` }} />
+      </div>
+      <span className="text-xs font-mono text-muted-foreground">${avgPrice.toFixed(2)}</span>
+    </div>
+  )
+}
 
 export default function HistoryPage() {
   const [filters, setFilters] = useState({
     sku: '', distributor: '', eu_company: '', status: 'all', date_from: '', date_to: '',
   })
   const [selectedSku, setSelectedSku] = useState<string | null>(null)
+  const [historicalStats, setHistoricalStats] = useState<BatchStatsResult>({})
 
   const { data: companies } = useCompanies()
   const { data: distributors } = useDistributors()
@@ -62,14 +66,53 @@ export default function HistoryPage() {
   const { data: searchResult, isLoading } = useHistoricalSearch(searchParams)
   const { data: priceTrend } = usePriceTrend(selectedSku)
 
-  const records = searchResult?.records ?? []
+  const records = useMemo(() => searchResult?.records ?? [], [searchResult])
   const stats = searchResult?.stats
+
+  // Fetch historical stats for visible SKUs
+  useEffect(() => {
+    const skus = [...new Set(records.map((r) => r.sku).filter(Boolean))] as string[]
+    if (skus.length === 0) return
+    api.historical.batchStats(skus).then(setHistoricalStats).catch(() => {})
+  }, [records])
 
   const handleRowClick = (row: ProcurementRecord) => {
     if (row.sku) {
       setSelectedSku(row.sku === selectedSku ? null : row.sku)
     }
   }
+
+  const columns: ColumnDef<ProcurementRecord, unknown>[] = useMemo(() => [
+    { accessorKey: 'sku', header: 'SKU', cell: (info) => <span className="font-mono text-xs">{info.getValue() as string}</span> },
+    { accessorKey: 'item_description', header: 'Description', cell: (info) => <span className="max-w-48 truncate block">{info.getValue() as string}</span> },
+    { accessorKey: 'distributor', header: 'Distributor' },
+    { accessorKey: 'brand', header: 'Brand' },
+    { accessorKey: 'quantity', header: 'Qty', cell: (info) => (info.getValue() as number)?.toLocaleString() },
+    { accessorKey: 'unit_price', header: 'Unit Price', cell: (info) => {
+      const v = info.getValue() as number
+      return v != null ? `$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '-'
+    }},
+    { accessorKey: 'total_price', header: 'Total', cell: (info) => {
+      const v = info.getValue() as number
+      return v != null ? `$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '-'
+    }},
+    {
+      id: 'trend',
+      header: 'Trend',
+      cell: (info) => {
+        const sku = (info.row.original.sku || '') as string
+        const stats = historicalStats[sku]
+        if (!stats || !stats.min_price || !stats.max_price) {
+          return <span className="text-muted-foreground text-xs">—</span>
+        }
+        return <PriceSparkline minPrice={stats.min_price} avgPrice={stats.avg_price} maxPrice={stats.max_price} />
+      },
+      size: 150,
+    },
+    { accessorKey: 'eu_company', header: 'Company' },
+    { accessorKey: 'quote_currency', header: 'Ccy' },
+    { accessorKey: 'source_file', header: 'Source', cell: (info) => <span className="max-w-32 truncate block text-xs text-muted-foreground">{info.getValue() as string}</span> },
+  ], [historicalStats])
 
   const exportCsv = () => {
     if (!records.length) return

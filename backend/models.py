@@ -31,6 +31,7 @@ class RecordResponse(RecordBase):
     validation_status: Optional[str] = None
     validation_message: Optional[str] = None
     field_validation: Optional[dict] = None
+    catalog_match: Optional[bool] = None
     user_modified: Optional[bool] = None
     is_current: Optional[bool] = None
     created_at: Optional[str] = None
@@ -81,6 +82,11 @@ class DashboardMetricsResponse(BaseModel):
     num_skus: int = 0
     recent_uploads: list[dict] = []
     validation_summary: ValidationSummary = ValidationSummary()
+    top_distributor: Optional[str] = None
+    top_distributor_count: int = 0
+    avg_unit_price: Optional[float] = None
+    most_quoted_sku: Optional[str] = None
+    most_quoted_sku_count: int = 0
 
 
 class HistoricalSearchParams(BaseModel):
@@ -124,3 +130,36 @@ class HealthResponse(BaseModel):
     connected: bool
     model: Optional[str] = None
     error: Optional[str] = None
+
+
+class CatalogEntry(BaseModel):
+    id: Optional[int] = None
+    sku: str
+    item_description: Optional[str] = None
+    brand: Optional[str] = None
+    base_price: Optional[float] = None
+    min_price: Optional[float] = None
+    max_price: Optional[float] = None
+    currency: Optional[str] = 'USD'
+    category: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class CatalogUploadResponse(BaseModel):
+    inserted_count: int
+    errors: list[str] = []
+
+
+class CatalogStatsResponse(BaseModel):
+    total_entries: int = 0
+    total_brands: int = 0
+    total_categories: int = 0
+
+
+class ReferenceDocumentResponse(BaseModel):
+    id: int
+    filename: str
+    original_name: str
+    collection_id: str
+    created_at: Optional[str] = None

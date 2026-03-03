@@ -1,6 +1,8 @@
 export interface FieldValidation {
   status: 'valid' | 'warning' | 'error'
   message: string
+  suggestion?: string
+  acknowledged?: boolean
 }
 
 export interface ProcurementRecord {
@@ -26,6 +28,7 @@ export interface ProcurementRecord {
   validation_status?: 'valid' | 'warning' | 'error' | 'pending'
   validation_message?: string | null
   field_validation?: Record<string, FieldValidation>
+  catalog_match?: boolean
   user_modified?: boolean
   is_current?: boolean
   created_at?: string | null
@@ -56,6 +59,11 @@ export interface DashboardMetrics {
   num_skus: number
   recent_uploads: UploadedFile[]
   validation_summary: ValidationSummary
+  top_distributor?: string | null
+  top_distributor_count?: number
+  avg_unit_price?: number | null
+  most_quoted_sku?: string | null
+  most_quoted_sku_count?: number
 }
 
 export interface UploadResponse {
@@ -120,3 +128,49 @@ export interface SkuPriceSummary {
 }
 
 export type BatchStatsResult = Record<string, SkuPriceSummary>
+
+export interface CatalogEntry {
+  id?: number
+  sku: string
+  item_description?: string | null
+  brand?: string | null
+  base_price?: number | null
+  min_price?: number | null
+  max_price?: number | null
+  currency?: string
+  category?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export interface CatalogUploadResponse {
+  inserted_count: number
+  errors: string[]
+}
+
+export interface CatalogStats {
+  total_entries: number
+  total_brands: number
+  total_categories: number
+}
+
+export interface RecordComment {
+  id: number
+  record_id: number
+  text: string
+  created_at: string
+}
+
+export interface SearchResults {
+  records: ProcurementRecord[]
+  catalog: CatalogEntry[]
+  historical: ProcurementRecord[]
+}
+
+export interface ReferenceDocument {
+  id: number
+  filename: string
+  original_name: string
+  collection_id: string
+  created_at: string
+}

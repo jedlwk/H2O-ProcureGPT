@@ -16,11 +16,16 @@ Upload vendor quotations (PDF/Excel), extract structured line items via AI, vali
 
 | Feature | Description |
 |---------|-------------|
-| **AI Extraction** | Upload PDF/Excel quotations → H2OGPTe extracts structured line items |
+| **AI Extraction** | Upload PDF/Excel quotations → H2OGPTe extracts structured line items (17 fields) |
 | **Validation Engine** | 3-tier validation (error/warning/valid) with 15+ business rules |
-| **Price Benchmarking** | Compare current prices against historical averages with charts |
-| **Historical Browser** | Search 18 months of pricing data with trend visualization |
+| **Price Benchmarking** | Compare prices against historical averages and catalog pricing |
+| **Catalog Management** | Structured product catalog with batch price adjustment and PDF fallback via RAG |
+| **Historical Browser** | Search 18 months of pricing data with trend sparklines |
 | **AI Analyst** | Ask natural-language questions about your procurement data |
+| **Global Search** | Cmd+K command palette searches records, catalog, and historical data |
+| **Inline Editing** | Edit, delete, bulk delete, undo, and re-validate records in-place |
+| **Comments** | Add per-record comments during review |
+| **CSV Export** | Export validated records with all 17 fields |
 | **Dark UI** | Modern dark theme with violet accent, built on shadcn/ui |
 
 ---
@@ -184,25 +189,27 @@ Procurement/
 │   ├── Dockerfile
 │   └── routers/
 │       ├── analyst.py        # POST /api/analyst — AI chat
+│       ├── catalog.py        # CRUD /api/catalog, batch price adjust, reference PDFs
 │       ├── dashboard.py      # GET  /api/dashboard/metrics
 │       ├── health.py         # GET  /api/health/h2ogpte
-│       ├── historical.py     # GET  /api/historical/search, price trends
-│       ├── records.py        # CRUD /api/records, validate, approve
-│       └── upload.py         # POST /api/upload, extract, verify
+│       ├── historical.py     # GET  /api/historical/search, price trends, batch stats
+│       ├── records.py        # CRUD /api/records, validate, approve, comments
+│       ├── search.py         # GET  /api/search — global cross-table search
+│       └── upload.py         # POST /api/upload, extract, verify, drafts
 │
 ├── procurement/              # Core Python services
 │   ├── config/
 │   │   └── settings.py       # Environment config
 │   └── services/
-│       ├── database.py       # SQLite CRUD, search, metrics
+│       ├── database.py       # SQLite CRUD, search, metrics, comments, catalog
 │       ├── extraction.py     # H2OGPTE document extraction
-│       ├── llm_service.py    # H2OGPTE client, model selection, analyst
-│       └── validation.py     # 3-tier validation engine
+│       ├── llm_service.py    # H2OGPTE client, model selection, analyst, PDF RAG
+│       └── validation.py     # 3-tier validation engine + catalog + PDF fallback
 │
 ├── frontend/                 # Next.js 16 + TypeScript
 │   ├── Dockerfile
 │   ├── src/
-│   │   ├── app/              # Pages: /, /upload, /validate, /history, /analyst
+│   │   ├── app/              # Pages: /, /upload, /validate, /history, /catalog, /analyst
 │   │   ├── components/       # UI components (shadcn/ui + custom)
 │   │   └── lib/              # API client, types, hooks
 │   └── public/               # Static assets (H2O logo)
@@ -215,7 +222,7 @@ Procurement/
 │   ├── test_database.py      # 9 tests — CRUD, search, metrics
 │   └── test_validation.py    # 28 tests — all validation rules
 │
-├── sample_quotes/             # Sample quotation files for testing
+├── sample_quotes/            # Sample quotation files for testing
 │   ├── Sample_Quote.xlsx
 │   ├── Sample_Quote_1.pdf
 │   └── Sample_Quote_2.pdf
@@ -231,23 +238,68 @@ Procurement/
 
 ## API Endpoints
 
+### Upload & Files
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/upload` | Upload a document |
+| `POST` | `/api/upload/extract` | Upload + AI extraction |
+| `POST` | `/api/upload/verify` | Check if document is procurement-related |
+| `GET` | `/api/upload/history` | List all uploaded files with status |
+| `GET` | `/api/upload/drafts/{filename}` | Get draft records for a file |
+| `PUT` | `/api/upload/drafts/{filename}` | Save updated draft records |
+| `PATCH` | `/api/upload/{file_id}/status` | Update upload status |
+| `DELETE` | `/api/upload/{file_id}` | Delete upload and its drafts |
+| `GET` | `/api/files/{filename}` | Download/preview original file |
+
+### Records
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/records` | List active records |
+| `GET` | `/api/records/{id}` | Get single record |
+| `PUT` | `/api/records/{id}` | Update a record |
+| `DELETE` | `/api/records/{id}` | Soft-delete a record |
+| `POST` | `/api/records/validate` | Run validation on records |
+| `POST` | `/api/records/approve-batch` | Approve and save to DB |
+| `POST` | `/api/records/batch-delete` | Delete multiple records by ID |
+| `GET` | `/api/records/{id}/comments` | Get comments for a record |
+| `POST` | `/api/records/{id}/comments` | Add a comment |
+| `DELETE` | `/api/records/{id}/comments/{comment_id}` | Delete a comment |
+
+### Catalog
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/catalog` | Search catalog entries |
+| `GET` | `/api/catalog/skus` | List all catalog SKUs |
+| `GET` | `/api/catalog/stats` | Catalog statistics |
+| `POST` | `/api/catalog/upload` | Upload CSV/Excel catalog file |
+| `DELETE` | `/api/catalog/{id}` | Delete catalog entry |
+| `POST` | `/api/catalog/batch-adjust-prices` | Adjust prices by percentage |
+| `POST` | `/api/catalog/upload-reference-pdf` | Upload reference PDF catalog |
+| `GET` | `/api/catalog/reference-docs` | List reference PDFs |
+| `DELETE` | `/api/catalog/reference-docs/{id}` | Delete reference PDF |
+
+### Historical & Analytics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/historical/search` | Search historical archive |
+| `GET` | `/api/historical/price-trend/{sku}` | Monthly price trend |
+| `GET` | `/api/historical/batch-stats` | Stats for multiple SKUs |
+| `GET` | `/api/historical/all-skus` | List unique SKUs in history |
+| `GET` | `/api/companies` | List distinct companies |
+| `GET` | `/api/distributors` | List distinct distributors |
+
+### Other
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/ping` | Health check |
 | `GET` | `/api/dashboard/metrics` | Dashboard aggregate stats |
 | `GET` | `/api/health/h2ogpte` | H2OGPTE connection status |
-| `POST` | `/api/upload` | Upload a document |
-| `POST` | `/api/upload/extract` | Upload + AI extraction |
-| `POST` | `/api/upload/verify` | Check if document is procurement-related |
-| `GET` | `/api/records` | List active records |
-| `PUT` | `/api/records/{id}` | Update a record |
-| `DELETE` | `/api/records/{id}` | Soft-delete a record |
-| `POST` | `/api/records/validate` | Run validation on records |
-| `POST` | `/api/records/approve-batch` | Approve and save to DB |
-| `GET` | `/api/historical/search` | Search historical archive |
-| `GET` | `/api/historical/price-trend/{sku}` | Monthly price trend |
-| `GET` | `/api/companies` | List distinct companies |
-| `GET` | `/api/distributors` | List distinct distributors |
+| `GET` | `/api/search?q=` | Global search across records, catalog, historical |
 | `POST` | `/api/analyst` | AI analyst query |
 
 ---

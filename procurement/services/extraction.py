@@ -10,6 +10,7 @@ from pathlib import Path
 from procurement.config.settings import EXTRACTION_PROMPT_PATH
 from procurement.services.llm_service import get_h2ogpte_client, get_best_llm
 from procurement.services.validation import validate_records
+from procurement.services.database import get_all_known_skus, get_catalog_entries_batch
 
 EXTRACTION_JSON_SCHEMA = {
     "type": "object",
@@ -131,8 +132,13 @@ def extract_document_with_llm(
             rec['source_file'] = filename
             _convert_numerics(rec)
 
+        # Pre-fetch catalog data for validation
+        known_skus = get_all_known_skus()
+        skus_in_batch = [r.get('sku') for r in normalized if r.get('sku')]
+        catalog_entries = get_catalog_entries_batch(skus_in_batch)
+
         # Validate
-        validated = validate_records(normalized)
+        validated = validate_records(normalized, known_skus=known_skus, catalog_entries=catalog_entries)
         return validated
 
     except Exception as e:

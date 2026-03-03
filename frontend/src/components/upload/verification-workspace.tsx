@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import type { ProcurementRecord } from '@/lib/types'
 import { DataTable } from '@/components/records/data-table'
 import { EditableCell } from '@/components/records/editable-cell'
+import { CurrencyCell } from '@/components/records/currency-cell'
 import { ValidationBadge } from '@/components/records/validation-badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -31,27 +32,109 @@ export function VerificationWorkspace({
   isValidating,
 }: VerificationWorkspaceProps) {
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
+  const deleteIndexRef = useRef<number | null>(null)
+
+  // Use refs to always read the latest values — avoids stale closures in callbacks
+  const recordsRef = useRef(records)
+  recordsRef.current = records
+  const onChangeRef = useRef(onRecordsChange)
+  onChangeRef.current = onRecordsChange
 
   const handleCellSave = useCallback((rowIndex: number, fieldKey: string, value: string | number | null) => {
-    const updated = [...records]
+    const current = recordsRef.current
+    const updated = [...current]
     const numericFields = ['quantity', 'unit_price', 'total_price']
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rec = updated[rowIndex] as any
+    const rec = { ...updated[rowIndex] } as any
     if (numericFields.includes(fieldKey) && value !== null) {
       const num = parseFloat(String(value))
       rec[fieldKey] = isNaN(num) ? value : num
     } else {
       rec[fieldKey] = value
     }
+    // Clear field validation when user provides a value (remove stale warning)
+    if (value !== null && value !== '' && rec.field_validation?.[fieldKey]) {
+      const fv = { ...rec.field_validation }
+      fv[fieldKey] = { status: 'valid', message: '', suggestion: '' }
+      rec.field_validation = fv
+      // Recalculate overall status
+      let worst: 'valid' | 'warning' | 'error' = 'valid'
+      for (const fd of Object.values(fv) as { status: string; acknowledged?: boolean }[]) {
+        if (fd.acknowledged) continue
+        if (fd.status === 'error') { worst = 'error'; break }
+        if (fd.status === 'warning') worst = 'warning'
+      }
+      rec.validation_status = worst
+    }
     updated[rowIndex] = { ...rec, user_modified: true }
-    onRecordsChange(updated)
-  }, [records, onRecordsChange])
+    console.log('[handleCellSave]', { rowIndex, fieldKey, value, recordCount: updated.length })
+    onChangeRef.current(updated)
+  }, [])
+
+  const handleAcknowledge = useCallback((rowIndex: number, fieldKey: string) => {
+    const current = recordsRef.current
+    const updated = [...current]
+    const rec = { ...updated[rowIndex] }
+    const fv = { ...(rec.field_validation || {}) }
+    const field = { ...(fv[fieldKey] || { status: 'valid' as const, message: '' }) }
+
+    // Toggle acknowledged
+    field.acknowledged = !field.acknowledged
+    fv[fieldKey] = field
+    rec.field_validation = fv
+
+    // Recalculate validation_status ignoring acknowledged fields
+    let worst: 'valid' | 'warning' | 'error' = 'valid'
+    for (const [, fd] of Object.entries(fv)) {
+      if (fd.acknowledged) continue
+      if (fd.status === 'error') { worst = 'error'; break }
+      if (fd.status === 'warning') worst = 'warning'
+    }
+    rec.validation_status = worst
+
+    updated[rowIndex] = rec
+    onChangeRef.current(updated)
+  }, [])
 
   const handleDelete = () => {
-    if (deleteIndex !== null) {
-      const updated = records.filter((_, i) => i !== deleteIndex)
-      onRecordsChange(updated)
+    const idx = deleteIndexRef.current
+    console.log('[handleDelete]', { idx, recordCount: recordsRef.current.length })
+    if (idx !== null) {
+      const updated = recordsRef.current.filter((_, i) => i !== idx)
+      // Recalculate duplicate warnings — clear stale ones, keep valid ones
+      recalcDuplicates(updated)
+      onChangeRef.current(updated)
+      deleteIndexRef.current = null
       setDeleteIndex(null)
+    }
+  }
+
+  /** Recompute duplicate-SKU warnings after a record is removed. */
+  function recalcDuplicates(recs: ProcurementRecord[]) {
+    // Build composite key groups (same logic as backend)
+    const groups: Record<string, number[]> = {}
+    recs.forEach((r, i) => {
+      const sku = (r.sku || '').trim().toUpperCase()
+      const key = `${sku}|${r.unit_price}|${r.quantity}`
+      ;(groups[key] ??= []).push(i)
+    })
+
+    for (const indices of Object.values(groups)) {
+      if (indices.length >= 2) continue // still duplicates — leave warnings
+      // Only one record with this key — clear the duplicate warning if present
+      const rec = recs[indices[0]]
+      const fv = rec.field_validation
+      if (fv?.sku?.message?.includes('Possible duplicate')) {
+        const newFv = { ...fv, sku: { status: 'valid' as const, message: '', suggestion: '' } }
+        // Recalculate overall status
+        let worst: 'valid' | 'warning' | 'error' = 'valid'
+        for (const fd of Object.values(newFv) as { status: string; acknowledged?: boolean }[]) {
+          if (fd.acknowledged) continue
+          if (fd.status === 'error') { worst = 'error'; break }
+          if (fd.status === 'warning') worst = 'warning'
+        }
+        recs[indices[0]] = { ...rec, field_validation: newFv, validation_status: worst }
+      }
     }
   }
 
@@ -73,6 +156,7 @@ export function VerificationWorkspace({
           fieldKey="sku"
           fieldValidation={row.original.field_validation?.sku}
           onSave={(k, v) => handleCellSave(row.index, k, v)}
+          onAcknowledge={(k) => handleAcknowledge(row.index, k)}
         />
       ),
     },
@@ -85,42 +169,20 @@ export function VerificationWorkspace({
           fieldKey="item_description"
           fieldValidation={row.original.field_validation?.item_description}
           onSave={(k, v) => handleCellSave(row.index, k, v)}
+          onAcknowledge={(k) => handleAcknowledge(row.index, k)}
         />
       ),
     },
     {
-      accessorKey: 'quantity',
-      header: 'Qty',
+      accessorKey: 'brand',
+      header: 'Brand',
       cell: ({ row }) => (
         <EditableCell
-          value={row.original.quantity}
-          fieldKey="quantity"
-          fieldValidation={row.original.field_validation?.quantity}
+          value={row.original.brand}
+          fieldKey="brand"
+          fieldValidation={row.original.field_validation?.brand}
           onSave={(k, v) => handleCellSave(row.index, k, v)}
-        />
-      ),
-    },
-    {
-      accessorKey: 'unit_price',
-      header: 'Unit Price',
-      cell: ({ row }) => (
-        <EditableCell
-          value={row.original.unit_price}
-          fieldKey="unit_price"
-          fieldValidation={row.original.field_validation?.unit_price}
-          onSave={(k, v) => handleCellSave(row.index, k, v)}
-        />
-      ),
-    },
-    {
-      accessorKey: 'total_price',
-      header: 'Total',
-      cell: ({ row }) => (
-        <EditableCell
-          value={row.original.total_price}
-          fieldKey="total_price"
-          fieldValidation={row.original.field_validation?.total_price}
-          onSave={(k, v) => handleCellSave(row.index, k, v)}
+          onAcknowledge={(k) => handleAcknowledge(row.index, k)}
         />
       ),
     },
@@ -133,6 +195,175 @@ export function VerificationWorkspace({
           fieldKey="distributor"
           fieldValidation={row.original.field_validation?.distributor}
           onSave={(k, v) => handleCellSave(row.index, k, v)}
+          onAcknowledge={(k) => handleAcknowledge(row.index, k)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'eu_company',
+      header: 'Company',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.eu_company}
+          fieldKey="eu_company"
+          fieldValidation={row.original.field_validation?.eu_company}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+          onAcknowledge={(k) => handleAcknowledge(row.index, k)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'quantity',
+      header: 'Qty',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.quantity}
+          fieldKey="quantity"
+          fieldValidation={row.original.field_validation?.quantity}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+          onAcknowledge={(k) => handleAcknowledge(row.index, k)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'unit_price',
+      header: 'Unit Price',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.unit_price}
+          fieldKey="unit_price"
+          fieldValidation={row.original.field_validation?.unit_price}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+          onAcknowledge={(k) => handleAcknowledge(row.index, k)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'total_price',
+      header: 'Total',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.total_price}
+          fieldKey="total_price"
+          fieldValidation={row.original.field_validation?.total_price}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+          onAcknowledge={(k) => handleAcknowledge(row.index, k)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'quote_currency',
+      header: 'Currency',
+      cell: ({ row }) => (
+        <CurrencyCell
+          value={row.original.quote_currency}
+          fieldKey="quote_currency"
+          fieldValidation={row.original.field_validation?.quote_currency}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+          onAcknowledge={(k) => handleAcknowledge(row.index, k)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'serial_no',
+      header: 'Serial No',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.serial_no}
+          fieldKey="serial_no"
+          fieldValidation={row.original.field_validation?.serial_no}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+          onAcknowledge={(k) => handleAcknowledge(row.index, k)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'start_date',
+      header: 'Start Date',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.start_date}
+          fieldKey="start_date"
+          fieldValidation={row.original.field_validation?.start_date}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+          onAcknowledge={(k) => handleAcknowledge(row.index, k)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'end_date',
+      header: 'End Date',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.end_date}
+          fieldKey="end_date"
+          fieldValidation={row.original.field_validation?.end_date}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+          onAcknowledge={(k) => handleAcknowledge(row.index, k)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'quotation_ref_no',
+      header: 'Quote Ref',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.quotation_ref_no}
+          fieldKey="quotation_ref_no"
+          fieldValidation={row.original.field_validation?.quotation_ref_no}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+          onAcknowledge={(k) => handleAcknowledge(row.index, k)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'quotation_date',
+      header: 'Quote Date',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.quotation_date}
+          fieldKey="quotation_date"
+          fieldValidation={row.original.field_validation?.quotation_date}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+          onAcknowledge={(k) => handleAcknowledge(row.index, k)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'quotation_end_date',
+      header: 'Quote End Date',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.quotation_end_date}
+          fieldKey="quotation_end_date"
+          fieldValidation={row.original.field_validation?.quotation_end_date}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+          onAcknowledge={(k) => handleAcknowledge(row.index, k)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'quotation_validity',
+      header: 'Validity',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.quotation_validity}
+          fieldKey="quotation_validity"
+          fieldValidation={row.original.field_validation?.quotation_validity}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
+          onAcknowledge={(k) => handleAcknowledge(row.index, k)}
+        />
+      ),
+    },
+    {
+      accessorKey: 'comments_notes',
+      header: 'Comments/Notes',
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.comments_notes}
+          fieldKey="comments_notes"
+          fieldValidation={row.original.field_validation?.comments_notes}
+          onSave={(k, v) => handleCellSave(row.index, k, v)}
         />
       ),
     },
@@ -144,14 +375,14 @@ export function VerificationWorkspace({
           variant="ghost"
           size="icon"
           className="h-7 w-7 text-muted-foreground hover:text-red-400"
-          onClick={(e) => { e.stopPropagation(); setDeleteIndex(row.index) }}
+          onClick={(e) => { e.stopPropagation(); deleteIndexRef.current = row.index; setDeleteIndex(row.index) }}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
       ),
       size: 40,
     },
-  ], [handleCellSave])
+  ], [handleCellSave, handleAcknowledge])
 
   const summary = useMemo(() => {
     const s = { valid: 0, warning: 0, error: 0 }
@@ -186,7 +417,19 @@ export function VerificationWorkspace({
           </div>
         </CardHeader>
         <CardContent>
-          <DataTable data={records} columns={columns} pageSize={10} />
+          <DataTable
+            data={records}
+            columns={columns}
+            pageSize={10}
+            rowClassName={(row) => {
+              const fv = row.field_validation || {}
+              const hasFieldError = Object.values(fv).some((f) => f.status === 'error' && !f.acknowledged)
+              const hasFieldWarning = Object.values(fv).some((f) => f.status === 'warning' && !f.acknowledged)
+              if (row.validation_status === 'error' || hasFieldError) return 'bg-red-500/5 shadow-[inset_3px_0_0_0_rgb(239,68,68)]'
+              if (row.validation_status === 'warning' || hasFieldWarning) return 'bg-amber-500/5 shadow-[inset_3px_0_0_0_rgb(245,158,11)]'
+              return ''
+            }}
+          />
         </CardContent>
       </Card>
 

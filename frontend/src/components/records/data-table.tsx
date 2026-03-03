@@ -10,7 +10,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Table,
   TableBody,
@@ -28,6 +28,9 @@ interface DataTableProps<T> {
   columns: ColumnDef<T, unknown>[]
   pageSize?: number
   onRowClick?: (row: T) => void
+  onSelectionChange?: (rows: T[]) => void
+  enableRowSelection?: boolean
+  rowClassName?: (row: T) => string
 }
 
 export function DataTable<T>({
@@ -35,24 +38,39 @@ export function DataTable<T>({
   columns,
   pageSize = 20,
   onRowClick,
+  onSelectionChange,
+  enableRowSelection = false,
+  rowClassName,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([])
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting },
+    state: { sorting, ...(enableRowSelection && { rowSelection }) },
     onSortingChange: setSorting,
+    ...(enableRowSelection && { onRowSelectionChange: setRowSelection }),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     initialState: { pagination: { pageSize } },
+    enableRowSelection: enableRowSelection,
   })
+
+  // Call onSelectionChange when selection changes
+  useEffect(() => {
+    if (enableRowSelection && onSelectionChange) {
+      const selectedRows = table.getSelectedRowModel().rows.map((row) => row.original)
+      onSelectionChange(selectedRows)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowSelection, enableRowSelection, onSelectionChange])
 
   return (
     <div>
-      <div className="rounded-lg border border-border overflow-hidden">
+      <div className="rounded-lg border border-border overflow-x-auto overflow-y-hidden">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -88,7 +106,10 @@ export function DataTable<T>({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className={cn(onRowClick && 'cursor-pointer hover:bg-muted/50')}
+                  className={cn(
+                    onRowClick && 'cursor-pointer hover:bg-muted/50',
+                    rowClassName?.(row.original)
+                  )}
                   onClick={() => onRowClick?.(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (

@@ -10,9 +10,11 @@ interface MetricCardProps {
   icon: LucideIcon
   description?: string
   className?: string
+  iconBgClassName?: string
+  iconClassName?: string
 }
 
-export function MetricCard({ title, value, icon: Icon, description, className }: MetricCardProps) {
+export function MetricCard({ title, value, icon: Icon, description, className, iconBgClassName, iconClassName }: MetricCardProps) {
   return (
     <Card className={cn('border-border', className)}>
       <CardContent className="p-6">
@@ -24,8 +26,8 @@ export function MetricCard({ title, value, icon: Icon, description, className }:
               <p className="text-xs text-muted-foreground mt-1">{description}</p>
             )}
           </div>
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-            <Icon className="h-6 w-6 text-primary" />
+          <div className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10', iconBgClassName)}>
+            <Icon className={cn('h-6 w-6 text-primary', iconClassName)} />
           </div>
         </div>
       </CardContent>

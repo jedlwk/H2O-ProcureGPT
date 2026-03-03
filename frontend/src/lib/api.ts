@@ -1,6 +1,7 @@
 import type {
   DashboardMetrics,
   UploadResponse,
+  UploadedFile,
   ProcurementRecord,
   HistoricalSearchResult,
   PriceTrendResponse,
@@ -8,9 +9,15 @@ import type {
   HealthStatus,
   BatchApproveResponse,
   BatchStatsResult,
+  CatalogEntry,
+  CatalogUploadResponse,
+  CatalogStats,
+  RecordComment,
+  SearchResults,
+  ReferenceDocument,
 } from './types'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002'
 
 class APIError extends Error {
   constructor(public status: number, message: string) {
@@ -93,6 +100,22 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ records, source_file: sourceFile }),
       }),
+    batchDelete: (ids: number[]) =>
+      fetchAPI<{ deleted: number }>('/api/records/batch-delete', {
+        method: 'POST',
+        body: JSON.stringify({ ids }),
+      }),
+    getComments: (id: number) =>
+      fetchAPI<RecordComment[]>(`/api/records/${id}/comments`),
+    addComment: (id: number, text: string) =>
+      fetchAPI<RecordComment>(`/api/records/${id}/comments`, {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+      }),
+    deleteComment: (recordId: number, commentId: number) =>
+      fetchAPI<{ status: string; id: number }>(`/api/records/${recordId}/comments/${commentId}`, {
+        method: 'DELETE',
+      }),
   },
 
   historical: {
@@ -144,5 +167,84 @@ export const api = {
 
   health: {
     h2ogpte: () => fetchAPI<HealthStatus>('/api/health/h2ogpte'),
+  },
+
+  catalog: {
+    list: (params?: { search?: string; brand?: string; category?: string; limit?: number }) => {
+      const searchParams = new URLSearchParams()
+      if (params) {
+        if (params.search) searchParams.set('search', params.search)
+        if (params.brand) searchParams.set('brand', params.brand)
+        if (params.category) searchParams.set('category', params.category)
+        if (params.limit) searchParams.set('limit', String(params.limit))
+      }
+      return fetchAPI<CatalogEntry[]>(`/api/catalog?${searchParams}`)
+    },
+
+    stats: () => fetchAPI<CatalogStats>('/api/catalog/stats'),
+
+    skus: () => fetchAPI<string[]>('/api/catalog/skus'),
+
+    upload: async (file: File): Promise<CatalogUploadResponse> => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch(`${API_BASE}/api/catalog/upload`, {
+        method: 'POST',
+        body: formData,
+      })
+      if (!res.ok) throw new APIError(res.status, await res.text())
+      return res.json()
+    },
+
+    deleteEntry: (id: number) =>
+      fetchAPI<{ status: string; id: number }>(`/api/catalog/${id}`, { method: 'DELETE' }),
+
+    batchAdjustPrices: (pct: number, brand?: string, category?: string) =>
+      fetchAPI<{ updated: number }>('/api/catalog/batch-adjust-prices', {
+        method: 'POST',
+        body: JSON.stringify({ pct, brand: brand || null, category: category || null }),
+      }),
+
+    uploadReferencePdf: async (file: File): Promise<ReferenceDocument> => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch(`${API_BASE}/api/catalog/upload-reference-pdf`, {
+        method: 'POST',
+        body: formData,
+      })
+      if (!res.ok) throw new APIError(res.status, await res.text())
+      return res.json()
+    },
+
+    listReferenceDocs: () =>
+      fetchAPI<ReferenceDocument[]>('/api/catalog/reference-docs'),
+
+    deleteReferenceDoc: (id: number) =>
+      fetchAPI<{ status: string; id: number }>(`/api/catalog/reference-docs/${id}`, { method: 'DELETE' }),
+  },
+
+  uploads: {
+    history: () => fetchAPI<UploadedFile[]>('/api/upload/history'),
+    getDrafts: (filename: string) =>
+      fetchAPI<ProcurementRecord[]>(`/api/upload/drafts/${encodeURIComponent(filename)}`),
+    saveDrafts: (filename: string, records: ProcurementRecord[]) =>
+      fetchAPI<{ saved: number }>(`/api/upload/drafts/${encodeURIComponent(filename)}`, {
+        method: 'PUT',
+        body: JSON.stringify(records),
+      }),
+    updateStatus: (fileId: number, status?: string, recordsExtracted?: number) =>
+      fetchAPI<{ ok: boolean }>(`/api/upload/${fileId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: status || null, records_extracted: recordsExtracted ?? null }),
+      }),
+    delete: (fileId: number) =>
+      fetchAPI<{ ok: boolean }>(`/api/upload/${fileId}`, { method: 'DELETE' }),
+    fileUrl: (filename: string) =>
+      `/api/files?name=${encodeURIComponent(filename)}`,
+  },
+
+  search: {
+    global: (q: string) =>
+      fetchAPI<SearchResults>(`/api/search?q=${encodeURIComponent(q)}`),
   },
 }

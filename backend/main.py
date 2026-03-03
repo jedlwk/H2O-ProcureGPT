@@ -4,7 +4,7 @@ FastAPI application for the Procurement Contract Sourcing System.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.routers import dashboard, historical, health, upload, records, analyst
+from backend.routers import dashboard, historical, health, upload, records, analyst, catalog, search
 from procurement.services.database import init_db
 
 app = FastAPI(
@@ -16,9 +16,9 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",
+        "http://localhost:3002",
         "http://localhost:8501",
-        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3002",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -31,6 +31,8 @@ app.include_router(health.router)
 app.include_router(upload.router)
 app.include_router(records.router)
 app.include_router(analyst.router)
+app.include_router(catalog.router)
+app.include_router(search.router)
 
 
 @app.on_event("startup")
